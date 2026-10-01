@@ -464,7 +464,9 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 .word-face .secret-word {
   font-size:clamp(54px,7.5vw,88px)!important;
   color:#f7fbff; text-shadow:0 0 32px #83b9ff42;
-  filter:none; line-height:1.1;
+  filter:none; line-height:1.1; letter-spacing:1px;
+  white-space:nowrap; overflow-wrap:normal;
+  display:flex; align-items:center; justify-content:center;
 }
 .word-face:has(.word-hidden) { background:#7bafff05; border-color:#7bafff20; box-shadow:none; }
 .word-face .secret-word.word-hidden { font-size:25px!important; color:var(--muted); text-shadow:none; }
@@ -496,7 +498,7 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 }
 @media(max-width:700px) {
   .word-face { padding-left:14px; padding-right:14px; border-radius:22px; }
-  .word-face .secret-word { font-size:clamp(44px,14vw,64px)!important; letter-spacing:-1.5px; }
+  .word-face .secret-word { font-size:clamp(44px,14vw,64px)!important; }
   .word-controls { gap:24px; }
 }
 @media(max-width:700px) and (min-height:761px) {

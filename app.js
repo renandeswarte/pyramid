@@ -151,15 +151,28 @@
     const viewport = window.visualViewport;
     const height = viewport && viewport.scale === 1 ? Math.min(innerHeight, viewport.height) : innerHeight;
     document.body.style.height = `${height}px`;
-    // Keep single-word targets on one line, including longer dictionary words.
-    const context = document.createElement('canvas').getContext('2d');
-    if (context) document.querySelectorAll('.secret-word:not(.word-hidden), .recap-word').forEach(word => {
+    // Measure the actual browser text, including the font and fixed letter spacing.
+    document.querySelectorAll('.secret-word:not(.word-hidden), .recap-word').forEach(word => {
       word.style.removeProperty('font-size');
+      word.style.removeProperty('min-height');
       const style = getComputedStyle(word);
-      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const width = context.measureText(word.textContent).width + parseFloat(style.letterSpacing || 0) * (word.textContent.length - 1);
-      const available = Math.min(word.clientWidth, word.parentElement.clientWidth);
-      if (width > available) word.style.setProperty('font-size', `${Math.max(22, Math.floor(parseFloat(style.fontSize) * available / width))}px`, 'important');
+      const maximum = parseFloat(style.fontSize);
+      // Keep the spotlight and its buttons steady when a longer word needs smaller type.
+      if (word.matches('.secret-word')) word.style.minHeight = style.lineHeight;
+      const range = document.createRange();
+      range.selectNodeContents(word);
+      const boxWidth = word.getBoundingClientRect().width;
+      const available = boxWidth - Math.max(8, boxWidth * .05);
+      if (available <= 0 || range.getBoundingClientRect().width <= available) return;
+      let lower = 1, upper = maximum;
+      // Fixed tracking does not shrink with the font, so solve for the rendered width.
+      while (upper - lower > .25) {
+        const size = (lower + upper) / 2;
+        word.style.setProperty('font-size', `${size}px`, 'important');
+        if (range.getBoundingClientRect().width <= available) lower = size;
+        else upper = size;
+      }
+      word.style.setProperty('font-size', `${Math.floor(lower * 100) / 100}px`, 'important');
     });
     const input = document.activeElement;
     const pane = input?.matches('input[data-player]') && input.closest('.setup-body');
@@ -171,6 +184,12 @@
   }
   window.addEventListener('resize', () => requestAnimationFrame(fitStage));
   window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(fitStage));
+  if ('ResizeObserver' in window) new ResizeObserver(() => requestAnimationFrame(fitStage)).observe(app);
+  new MutationObserver(records => {
+    if (records.some(record => record.target.parentElement?.closest('.secret-word,.recap-word') || record.target.matches?.('.secret-word,.recap-word'))) fitStage();
+  }).observe(app, { childList: true, characterData: true, subtree: true });
+  document.fonts?.ready.then(fitStage);
+  document.fonts?.addEventListener('loadingdone', fitStage);
   function render(focus = true) {
     stopAnimation();
     const screen = game ? (privacy ? 'privacy-' : '') + game.phase : 'setup-' + setupStep;
@@ -188,7 +207,7 @@
     lastScreen = screen;
     if (focus) { app.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: 'instant' }); }
     updateSoundButton();
-    requestAnimationFrame(fitStage);
+    fitStage();
   }
   function runSelection(guesser) {
     const candidates = game.players.filter(p => !guesser || p.id !== E.pair(game).teller);
