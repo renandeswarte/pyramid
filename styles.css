@@ -451,6 +451,82 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 }
 .word-controls .joker-button:hover:not(:disabled) { background:#f5ce8337; border-color:#f5ce83b0; }
 .word-controls .joker-button:disabled { color:var(--muted)!important; background:#ffffff04; border-color:#ffffff20; box-shadow:none; opacity:.65; }
+
+/* Give the target its own spotlight and keep both word actions easy to find. */
+.word-area { margin:clamp(22px,5cqh,50px) 0 clamp(20px,4cqh,36px); }
+.word-face {
+  width:100%; padding:clamp(18px,3cqh,30px) 18px;
+  border:1px solid #85b7ff3b; border-radius:26px;
+  background:radial-gradient(ellipse at 50% 60%,#468dff2e,transparent 75%),linear-gradient(135deg,#8bbaff0c,#4488ff06);
+  box-shadow:0 12px 48px #050c1c30,inset 0 1px 0 #c0ddff12;
+}
+.word-face .word-label { color:#a9caff; margin-bottom:16px; }
+.word-face .secret-word {
+  font-size:clamp(54px,7.5vw,88px)!important;
+  color:#f7fbff; text-shadow:0 0 32px #83b9ff42;
+  filter:none; line-height:1.1;
+}
+.word-face:has(.word-hidden) { background:#7bafff05; border-color:#7bafff20; box-shadow:none; }
+.word-face .secret-word.word-hidden { font-size:25px!important; color:var(--muted); text-shadow:none; }
+.word-controls { gap:28px; margin-top:22px; }
+.word-controls .hide-word-button {
+  min-height:44px; min-width:124px; padding:10px 15px; gap:8px;
+  border-radius:13px; font-size:12px;
+}
+.word-controls .hide-word-button[aria-pressed=true] { background:#7bafff2b; border-color:#93bfff8c; }
+.word-panel { padding-top:18px; }
+.word-panel .brick-bank { margin:16px 0 22px; }
+.word-panel .bet-label { margin-bottom:16px; }
+.word-panel > .hint { margin-top:20px; }
+
+/* Spend spare height on breathing room, while keeping compact screens bounded. */
+@media(min-height:761px) {
+  .app-shell { grid-template-rows:72px minmax(0,1fr) 28px; }
+  .game-toolbar { height:54px; }
+  .game-layout { height:calc(100% - 54px); }
+  .setup-stage,.setup-content { gap:20px; }
+  .setup-heading h1 { margin-bottom:12px; }
+  .setup-heading .eyebrow { margin-bottom:12px; }
+  .players-grid { gap:16px; }
+  .counter-control { margin-bottom:22px; }
+  .setup-tip { margin-top:22px; }
+  .setup-callout,.balance-note { margin-top:24px; }
+  .play-panel:not(.word-panel):not(.selection-panel) { row-gap:6px; }
+  .finish-screen { gap:18px; }
+}
+@media(max-width:700px) {
+  .word-face { padding-left:14px; padding-right:14px; border-radius:22px; }
+  .word-face .secret-word { font-size:clamp(44px,14vw,64px)!important; letter-spacing:-1.5px; }
+  .word-controls { gap:24px; }
+}
+@media(max-width:700px) and (min-height:761px) {
+  .app-shell { grid-template-rows:68px minmax(0,1fr); }
+}
+@media(max-height:760px) {
+  .word-panel { padding-top:10px; }
+  .word-area { margin:14px 0 14px; }
+  .word-face { padding-top:12px; padding-bottom:12px; }
+  .word-face .word-label { margin-bottom:10px; }
+  .word-face .secret-word { font-size:clamp(44px,6vw,60px)!important; }
+  .word-controls { margin-top:14px; }
+  .word-panel .brick-bank { margin:10px 0 14px; }
+  .word-panel .bet-label { margin-bottom:14px; }
+  .word-panel > .hint { margin-top:16px; }
+}
+@media(max-width:700px) and (max-height:760px) {
+  .word-face .secret-word { font-size:clamp(40px,12vw,52px)!important; }
+}
+@media(min-width:701px) and (max-height:540px) {
+  .word-panel { padding-top:6px; }
+  .word-area { margin:0; }
+  .word-face { padding:14px 12px; border-radius:20px; }
+  .word-face .secret-word { font-size:clamp(36px,5vw,60px)!important; }
+  .word-controls { gap:18px; margin-top:14px; }
+  .word-controls .hide-word-button,.word-controls .joker-button { min-width:112px; padding:10px 12px; }
+  .word-panel .brick-bank { margin:0; }
+  .word-panel .bet-label { margin:0; }
+  .word-panel > .hint { margin:0; }
+}
 @media(max-width:370px) {
   .toolbar-actions .utility-button { padding:8px 9px; gap:5px; font-size:10px; }
   .game-progress .progress-bar { width:35px; }

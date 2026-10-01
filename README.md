@@ -17,7 +17,7 @@ Then open http://127.0.0.1:4173. Installation and offline caching need localhost
 - 2–10 players; defaults are Renan, Valerie, Thomas, and Chloe.
 - Setup moves through four screens: Players → Words → Time → Length. Short games and the six-turn Classic game are available. Each player gets three starting blue bricks per telling turn and one Joker per game.
 - For two players choose 1, 3 or 6 turns per role; for three choose 2, 4 or 6; for four choose 3 or 6. Larger groups can choose six turns or a full round robin of `players − 1` turns. Six-turn Classic starts with 18 bricks; the shortest two-, three- and four-player games start with 3, 6 and 9 respectively.
-- One turn is one word. Bet 1–3 bricks before the 30- or 60-second betting deadline. The full bet is committed with no refund for an early success.
+- One turn is one word. Bet 1–3 bricks before the 30- or 60-second betting deadline (30 seconds by default). The full bet is committed with no refund for an early success.
 - Each brick buys one spoken clue word and one spoken guess. The teller records each attempt as Correct or Incorrect. There is no guessing timer.
 - A correct guess gives one guessing point to the guesser and one telling point to the teller.
 - A betting timeout spends three bricks, loses the turn, and gives neither player a success point. It still counts as one telling and one guessing turn.
