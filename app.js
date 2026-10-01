@@ -4,6 +4,23 @@
   const WORDS = window.PyramidWords || {};
   const app = document.getElementById('app');
   const modal = document.getElementById('modal');
+  const standaloneDisplay = matchMedia('(display-mode: standalone)');
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  const browserViewport = viewportMeta.content;
+  let webAppMode = false;
+  function updateWebAppMode() {
+    webAppMode = standaloneDisplay.matches || navigator.standalone === true;
+    document.documentElement.classList.toggle('web-app-mode', webAppMode);
+    viewportMeta.content = webAppMode ? `${browserViewport}, maximum-scale=1, user-scalable=no` : browserViewport;
+  }
+  updateWebAppMode();
+  standaloneDisplay.addEventListener('change', updateWebAppMode);
+  // Safari's native pinch gestures need an explicit guard in installed app mode.
+  const preventAppZoom = event => { if (webAppMode && event.cancelable) event.preventDefault(); };
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, preventAppZoom, { passive: false });
+  const preventAppPinch = event => { if (event.touches.length > 1) preventAppZoom(event); };
+  document.addEventListener('touchstart', preventAppPinch, { passive: false });
+  document.addEventListener('touchmove', preventAppPinch, { passive: false });
   const storageKey = 'pyramid-game-v1';
   const preferencesKey = 'pyramid-preferences-v1';
   const defaults = ['Renan', 'Valerie', 'Thomas', 'Chloe'];

@@ -8,6 +8,8 @@
 
 /* A screen-sized stage. Panels adapt to both width and usable browser height. */
 html { height:100%; overflow:hidden; }
+/* Installed app windows allow panning, without pinch or double-tap zoom. */
+html.web-app-mode,html.web-app-mode * { touch-action:pan-x pan-y; }
 body { height:100vh; height:100dvh; min-height:0; overflow:hidden; }
 .app-shell {
   height:100%; display:grid; grid-template-rows:64px minmax(0,1fr) 28px;
