@@ -1,0 +1,116 @@
+/* Pure game rules. Usable in the browser and in Node for verification. */
+(function (root) {
+  'use strict';
+  const TURNS = 6;
+  const BRICKS = 18;
+  function shuffle(items, random = Math.random) {
+    const result = [...items];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+  function schedule(count, random = Math.random, rounds = TURNS) {
+    if (!Number.isInteger(count) || count < 2 || count > 10) throw new Error('Choose between 2 and 10 players.');
+    if (!Number.isInteger(rounds) || rounds < 1 || rounds > 18) throw new Error('Choose between 1 and 18 turns per player.');
+    const ring = shuffle(Array.from({ length: count }, (_, i) => i), random);
+    const offsets = shuffle(Array.from({ length: count - 1 }, (_, i) => i + 1), random);
+    const turns = [];
+    for (let cycle = 0; cycle < rounds; cycle++) {
+      const offset = offsets[cycle % offsets.length];
+      const pairs = ring.map((teller, i) => ({ teller, guesser: ring[(i + offset) % count], cycle: cycle + 1 }));
+      turns.push(...shuffle(pairs, random));
+    }
+    return turns;
+  }
+  function createGame(names, category, seconds, words, random = Math.random, rounds = TURNS) {
+    const planned = schedule(names.length, random, rounds);
+    if (!names.every(name => typeof name === 'string' && name.trim() && name.trim().length <= 24)) throw new Error('Give every player a name (24 characters or fewer).');
+    if (new Set(names.map(name => name.trim().toLowerCase())).size !== names.length) throw new Error('Use a different name for each player.');
+    if (![30, 60].includes(seconds)) throw new Error('Choose a 30- or 60-second time limit.');
+    const unique = [...new Map(words.map(word => [word.trim().toLowerCase(), word.trim()])).values()].filter(Boolean);
+    if (unique.length < names.length * (rounds + 1)) throw new Error('This category needs more words for this many players.');
+    return {
+      version: 1, category, seconds, turns: rounds, startingBricks: rounds * 3, phase: 'shuffle-teller', index: 0,
+      players: names.map((name, id) => ({ id, name: name.trim(), bricks: rounds * 3, told: 0, guessed: 0, telling: 0, guessing: 0, brickBonus: 0, jokerBonus: 0, jokerUsed: false })),
+      schedule: planned, deck: shuffle(unique, random), used: [], history: [], current: null
+    };
+  }
+  function pair(game) { return game.schedule[game.index]; }
+  function draw(game) {
+    const word = game.deck.pop();
+    if (!word) throw new Error('No unused words remain.');
+    game.used.push(word);
+    return word;
+  }
+  function beginBetting(game, now = Date.now()) {
+    if (game.phase !== 'ready') return false;
+    game.current = { ...pair(game), word: draw(game), discarded: null, bet: 0, attempts: 0, deadline: now + game.seconds * 1000 };
+    game.phase = 'betting';
+    return true;
+  }
+  function finishTurn(game, success, timeout = false) {
+    if (!['betting', 'attempts'].includes(game.phase)) return false;
+    const turn = game.current;
+    const teller = game.players[turn.teller];
+    const guesser = game.players[turn.guesser];
+    teller.told++;
+    guesser.guessed++;
+    if (success) { teller.telling++; guesser.guessing++; }
+    let brickBonus = 0, jokerBonus = 0;
+    if (teller.told === (game.turns || TURNS)) {
+      brickBonus = teller.bricks;
+      jokerBonus = teller.jokerUsed ? 0 : 1;
+      teller.brickBonus = brickBonus;
+      teller.jokerBonus = jokerBonus;
+    }
+    game.history.push({ ...turn, success, timeout, brickBonus, jokerBonus, bricksLeft: teller.bricks });
+    game.phase = 'recap';
+    return true;
+  }
+  function expire(game, now = Date.now()) {
+    if (game.phase !== 'betting' || now < game.current.deadline) return false;
+    const teller = game.players[game.current.teller];
+    game.current.bet = 3;
+    teller.bricks -= 3;
+    finishTurn(game, false, true);
+    return true;
+  }
+  function bet(game, amount, now = Date.now()) {
+    if (game.phase !== 'betting' || expire(game, now)) return false;
+    if (![1, 2, 3].includes(amount)) throw new Error('Choose one, two, or three bricks.');
+    const teller = game.players[game.current.teller];
+    if (amount > teller.bricks) throw new Error('Not enough bricks.');
+    teller.bricks -= amount;
+    game.current.bet = amount;
+    game.phase = 'attempts';
+    return true;
+  }
+  function joker(game, now = Date.now()) {
+    if (game.phase !== 'betting' || expire(game, now)) return false;
+    const teller = game.players[game.current.teller];
+    if (teller.jokerUsed) return false;
+    teller.jokerUsed = true;
+    game.current.discarded = game.current.word;
+    game.current.word = draw(game);
+    return true;
+  }
+  function attempt(game, correct) {
+    if (game.phase !== 'attempts') return false;
+    game.current.attempts++;
+    if (correct || game.current.attempts >= game.current.bet) finishTurn(game, Boolean(correct));
+    return true;
+  }
+  function next(game) {
+    if (game.phase !== 'recap') return false;
+    game.index++;
+    game.current = null;
+    game.phase = game.index >= game.schedule.length ? 'finished' : 'shuffle-teller';
+    return true;
+  }
+  function score(player) { return player.guessing + player.telling + player.brickBonus + player.jokerBonus; }
+  const api = { TURNS, BRICKS, shuffle, schedule, createGame, pair, beginBetting, expire, bet, joker, attempt, next, score };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.PyramidEngine = api;
+})(typeof window !== 'undefined' ? window : globalThis);
