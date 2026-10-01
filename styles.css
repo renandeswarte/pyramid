@@ -452,6 +452,16 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 .word-controls .joker-button:hover:not(:disabled) { background:#f5ce8337; border-color:#f5ce83b0; }
 .word-controls .joker-button:disabled { color:var(--muted)!important; background:#ffffff04; border-color:#ffffff20; box-shadow:none; opacity:.65; }
 
+/* The keyboard replaces the home-indicator area while player names are edited. */
+.keyboard-open .app-shell { grid-template-rows:56px minmax(0,1fr); padding-bottom:0; }
+.keyboard-open .app-footer,.keyboard-open .setup-steps,
+.keyboard-open .setup-heading .eyebrow,.keyboard-open .setup-heading .subtitle,
+.keyboard-open .party-emblem,.keyboard-open .setup-tip,.keyboard-open .start-note { display:none; }
+.keyboard-open .setup-stage { grid-template-rows:minmax(0,1fr) auto; gap:8px; }
+.keyboard-open .setup-content { gap:8px; }
+.keyboard-open .setup-heading h1 { font-size:26px; margin-bottom:6px; }
+.keyboard-open .setup-navigation button { min-height:48px; padding:12px 18px; }
+
 /* Give the target its own spotlight and keep both word actions easy to find. */
 .word-area { margin:clamp(22px,5cqh,50px) 0 clamp(20px,4cqh,36px); }
 .word-face {
@@ -503,6 +513,14 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 }
 @media(max-width:700px) and (min-height:761px) {
   .app-shell { grid-template-rows:68px minmax(0,1fr); }
+  /* Safe areas can leave less usable height than the viewport media query suggests. */
+  @container (max-height:670px) {
+    .setup-stage { gap:16px; }
+    .setup-content { gap:12px; }
+    .category { min-height:70px; padding:12px; }
+    .category-global { min-height:80px; }
+    .category-global .category-symbol { width:50px; height:50px; }
+  }
 }
 @media(max-height:760px) {
   .word-panel { padding-top:10px; }

@@ -149,8 +149,13 @@
   function stopAnimation() { clearInterval(animationTimer); clearTimeout(animationEnd); animationTimer = null; animationEnd = null; }
   function fitStage() {
     const viewport = window.visualViewport;
-    const height = viewport && viewport.scale === 1 ? Math.min(innerHeight, viewport.height) : innerHeight;
+    const input = document.activeElement;
+    // Installed iPhone apps can exclude safe areas from visualViewport.height.
+    // The shell already pads those areas; only shrink it for an on-screen keyboard.
+    const keyboardOpen = Boolean(input?.matches('input[data-player]') && viewport?.scale === 1 && viewport.height < innerHeight * .8);
+    const height = keyboardOpen ? Math.min(innerHeight, viewport.height + viewport.offsetTop) : innerHeight;
     document.body.style.height = `${height}px`;
+    document.body.classList.toggle('keyboard-open', keyboardOpen);
     // Measure the actual browser text, including the font and fixed letter spacing.
     document.querySelectorAll('.secret-word:not(.word-hidden), .recap-word').forEach(word => {
       word.style.removeProperty('font-size');
@@ -174,7 +179,6 @@
       }
       word.style.setProperty('font-size', `${Math.floor(lower * 100) / 100}px`, 'important');
     });
-    const input = document.activeElement;
     const pane = input?.matches('input[data-player]') && input.closest('.setup-body');
     if (pane) {
       const field = input.getBoundingClientRect(), bounds = pane.getBoundingClientRect();
@@ -184,6 +188,9 @@
   }
   window.addEventListener('resize', () => requestAnimationFrame(fitStage));
   window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(fitStage));
+  window.visualViewport?.addEventListener('scroll', () => requestAnimationFrame(fitStage));
+  document.addEventListener('focusin', () => requestAnimationFrame(fitStage));
+  document.addEventListener('focusout', () => requestAnimationFrame(fitStage));
   if ('ResizeObserver' in window) new ResizeObserver(() => requestAnimationFrame(fitStage)).observe(app);
   new MutationObserver(records => {
     if (records.some(record => record.target.parentElement?.closest('.secret-word,.recap-word') || record.target.matches?.('.secret-word,.recap-word'))) fitStage();
