@@ -763,7 +763,9 @@ html.touch-input body input,html.touch-input body textarea,html.touch-input body
 }
 
 /* Local flags fill the circular language control, including on emoji-free devices. */
-.language-button { padding:0; overflow:hidden; }
+.language-button { position:relative; padding:0; overflow:hidden; border:0; }
+/* Draw above the flag so the 1px inner rim stays visible on every color. */
+.language-button::after { content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 1px #2b3242; pointer-events:none; }
 .language-button img { display:block; width:100%; height:100%; object-fit:cover; border-radius:50%; }
 .language-flag { display:block; width:36px; height:36px; border-radius:50%; overflow:hidden; flex-shrink:0; }
 .language-flag img { display:block; width:100%; height:100%; }
