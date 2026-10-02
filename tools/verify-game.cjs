@@ -48,9 +48,9 @@ for (const [n, rounds] of [[2,1],[2,3],[3,2],[3,4],[4,3],[10,9]]) {
       const teller = g.players[g.current.teller];
       if (outcome === 'timeout') E.expire(g, 31000);
       else {
-        if (outcome === 'joker' && !teller.jokerUsed) E.joker(g, 1200);
+        if (outcome === 'joker' && !teller.jokersUsed) E.joker(g, 1200);
         E.bet(g, outcome === 'joker' ? 2 : 1, 1400);
-        E.attempt(g, true);
+        E.attempt(g, true, 4000);
       }
       if (teller.told < rounds) check(teller.brickBonus===0 && teller.jokerBonus===0, 'Bonuses wait for final telling turn');
       E.next(g);
@@ -72,8 +72,8 @@ for (const n of [2, 3, 4, 10]) {
   while (g.phase !== 'finished') {
     ready(g);
     check(E.bet(g, 1, 1100), 'Bet accepted before deadline');
-    check(E.attempt(g, true), 'Correct guess accepted');
-    check(!E.attempt(g, true), 'Completed turn cannot score twice');
+    check(E.attempt(g, true, 4000), 'Correct guess accepted');
+    check(!E.attempt(g, true, 4000), 'Completed turn cannot score twice');
     E.next(g);
   }
   for (const p of g.players) {
@@ -105,15 +105,15 @@ for (const n of [2, 3, 4, 10]) {
   while (g.phase !== 'finished') {
     ready(g);
     const p = g.players[E.pair(g).teller], deadline = g.current.deadline, first = g.current.word;
-    if (!p.jokerUsed) {
+    if (!p.jokersUsed) {
       check(E.joker(g, 2000), 'First Joker accepted');
-      check(g.current.deadline === deadline && g.current.discarded === first && g.current.word !== first, 'Swap retains timer and uses new word');
+      check(g.current.deadline === deadline && g.current.discarded[0] === first && g.current.word !== first, 'Swap retains timer and uses new word');
       check(!E.joker(g, 2500), 'No second Joker');
     }
     E.bet(g, 2, 3000);
-    E.attempt(g, false);
+    E.attempt(g, false, 3500);
     check(g.phase === 'attempts', 'First wrong guess leaves one attempt');
-    E.attempt(g, true);
+    E.attempt(g, true, 4000);
     E.next(g);
   }
   check(g.used.length === 21 && new Set(g.used).size === 21, 'Played and discarded words all unique');
@@ -121,10 +121,10 @@ for (const n of [2, 3, 4, 10]) {
 }
 {
   const g = game(); ready(g);
-  check(!E.joker(g, 31000) && g.phase === 'recap' && !g.players[g.current.teller].jokerUsed, 'Expired Joker action loses turn without consuming Joker');
+  check(!E.joker(g, 31000) && g.phase === 'recap' && !g.players[g.current.teller].jokersUsed, 'Expired Joker action loses turn without consuming Joker');
 }
 {
-  const g = game(); ready(g); E.bet(g, 3, 1200); E.attempt(g, true);
+  const g = game(); ready(g); E.bet(g, 3, 1200); E.attempt(g, true, 4000);
   check(g.history[0].bet === 3 && g.players[g.history[0].teller].bricks === 15, 'Early success never refunds committed bet');
 }
 assert.throws(() => E.createGame(['Same', 'same'], 'global', 30, words));
@@ -140,4 +140,58 @@ for (const category of ['global', 'food', 'animals', 'geography', 'body', 'kids'
   check(deck.length >= 100, `${category} supports ten players with nine turns and Jokers`);
   check(new Set(deck.map(w => w.toLowerCase())).size === deck.length, `${category} has no duplicates`);
 }
+// Every Joker allowance and usage count: final score, resource limits, unique swaps.
+for (const allowance of [0, 1, 2]) for (let used = 0; used <= allowance; used++) {
+  const g = E.createGame(['A', 'B'], 'food', 30, words, random(18), 1, allowance);
+  while (g.phase !== 'finished') {
+    ready(g);
+    const first = g.current.word;
+    for (let j = 0; j < used; j++) check(E.joker(g, 2000 + j), 'Allowed Joker is available');
+    check(g.current.discarded.length === used, 'Every swapped word recorded');
+    if (used === allowance) check(!E.joker(g, 2100), 'No extra Jokers');
+    if (used) check(g.current.discarded[0] === first, 'First discard retained');
+    E.bet(g, 1, 3000); E.attempt(g, true, 4000); E.next(g);
+  }
+  check(g.players.every(p => p.jokerBonus === allowance - used && E.score(p) === 4 + allowance - used), 'Unused Jokers each earn one point');
+  check(g.used.length === 2 * (1 + used) && new Set(g.used).size === g.used.length, 'All swaps unique');
+}
+for (const seconds of [30, 60]) {
+  const g = E.createGame(['A', 'B'], 'global', seconds, words);
+  ready(g, 1000); E.bet(g, 3, 2000);
+  const firstDeadline = 2000 + seconds * 1000;
+  check(g.current.deadline === firstDeadline, 'Bet starts full guessing timer');
+  check(!E.expire(g, firstDeadline - 1), 'Guess timeout never early');
+  check(!E.attempt(g, true, firstDeadline), 'Correct at expired deadline rejected');
+  check(g.current.attempts === 1 && g.phase === 'attempts', 'Guess timeout consumes exactly one attempt');
+  check(g.players[g.current.teller].bricks === 15, 'Guess timeout never charges more bricks');
+  check(g.current.deadline === firstDeadline + seconds * 1000, 'Next timeout deadline starts fresh');
+  E.attempt(g, false, firstDeadline + 1000);
+  check(g.current.deadline === firstDeadline + 1000 + seconds * 1000, 'Manual incorrect starts fresh timer');
+  E.attempt(g, true, g.current.deadline - 1);
+  check(g.history[0].success && g.history[0].attemptResults.join() === 'timeout,incorrect,correct', 'Success after timeout scores once');
+  check(!E.attempt(g, true, firstDeadline + 2000), 'No duplicate score');
+  check(g.players.reduce((n,p) => n+p.telling+p.guessing,0) === 2, 'Only one point per role');
+}
+{
+  const g = game(); ready(g); E.bet(g, 3, 2000);
+  check(E.expire(g, 200000), 'Background catch-up expires elapsed attempts');
+  check(g.phase === 'recap' && g.history[0].timeout === 'guessing' && g.current.attempts === 3, 'All expired attempts finish word');
+  check(g.players[g.current.teller].bricks === 15, 'Catch-up keeps committed bet');
+  check(!E.expire(g, 300000), 'Catch-up is idempotent');
+}
+{
+  const g = game(); ready(g); E.bet(g, 2, 2000);
+  const restored = E.restore(JSON.parse(JSON.stringify(g)), 5000);
+  check(restored.current.deadline === 32000, 'New games preserve deadline on restore');
+  const old = JSON.parse(JSON.stringify(g)); old.version = 1; delete old.jokers;
+  old.players.forEach(p => { p.jokerUsed = p.id === old.current.teller; delete p.jokersUsed; });
+  old.current.discarded = 'oldword'; delete old.current.attemptResults;
+  E.restore(old, 5000);
+  check(old.version === 2 && old.jokers === 1 && old.players[old.current.teller].jokersUsed === 1, 'Old game retains Joker allowance and use');
+  check(old.current.deadline === 35000 && old.current.discarded[0] === 'oldword', 'Old active attempt receives initial timer and retains discard');
+  E.restore(old, 9000);
+  check(old.current.deadline === 35000, 'Migration runs once');
+}
+assert.throws(() => E.createGame(['A','B'], 'global', 30, words, Math.random, 1, 3));
+assert.throws(() => E.createGame(['A','B'], 'global', 30, ['a','b','c','d','e'], Math.random, 1, 2));
 console.log(`Passed ${checks.toLocaleString()} game-rule and schedule checks.`);

@@ -24,16 +24,17 @@
     }
     return turns;
   }
-  function createGame(names, category, seconds, words, random = Math.random, rounds = TURNS) {
+  function createGame(names, category, seconds, words, random = Math.random, rounds = TURNS, jokers = 1) {
     const planned = schedule(names.length, random, rounds);
     if (!names.every(name => typeof name === 'string' && name.trim() && name.trim().length <= 24)) throw new Error('Give every player a name (24 characters or fewer).');
     if (new Set(names.map(name => name.trim().toLowerCase())).size !== names.length) throw new Error('Use a different name for each player.');
     if (![30, 60].includes(seconds)) throw new Error('Choose a 30- or 60-second time limit.');
+    if (![0, 1, 2].includes(jokers)) throw new Error('Choose zero, one, or two Jokers.');
     const unique = [...new Map(words.map(word => [word.trim().toLowerCase(), word.trim()])).values()].filter(Boolean);
-    if (unique.length < names.length * (rounds + 1)) throw new Error('This category needs more words for this many players.');
+    if (unique.length < names.length * (rounds + jokers)) throw new Error('This category needs more words for this many players.');
     return {
-      version: 1, category, seconds, turns: rounds, startingBricks: rounds * 3, phase: 'shuffle-teller', index: 0,
-      players: names.map((name, id) => ({ id, name: name.trim(), bricks: rounds * 3, told: 0, guessed: 0, telling: 0, guessing: 0, brickBonus: 0, jokerBonus: 0, jokerUsed: false })),
+      version: 2, category, seconds, jokers, turns: rounds, startingBricks: rounds * 3, phase: 'shuffle-teller', index: 0,
+      players: names.map((name, id) => ({ id, name: name.trim(), bricks: rounds * 3, told: 0, guessed: 0, telling: 0, guessing: 0, brickBonus: 0, jokerBonus: 0, jokersUsed: 0 })),
       schedule: planned, deck: shuffle(unique, random), used: [], history: [], current: null
     };
   }
@@ -46,7 +47,7 @@
   }
   function beginBetting(game, now = Date.now()) {
     if (game.phase !== 'ready') return false;
-    game.current = { ...pair(game), word: draw(game), discarded: null, bet: 0, attempts: 0, deadline: now + game.seconds * 1000 };
+    game.current = { ...pair(game), word: draw(game), discarded: [], bet: 0, attempts: 0, attemptResults: [], deadline: now + game.seconds * 1000 };
     game.phase = 'betting';
     return true;
   }
@@ -61,7 +62,7 @@
     let brickBonus = 0, jokerBonus = 0;
     if (teller.told === (game.turns || TURNS)) {
       brickBonus = teller.bricks;
-      jokerBonus = teller.jokerUsed ? 0 : 1;
+      jokerBonus = game.jokers - teller.jokersUsed;
       teller.brickBonus = brickBonus;
       teller.jokerBonus = jokerBonus;
     }
@@ -70,11 +71,21 @@
     return true;
   }
   function expire(game, now = Date.now()) {
-    if (game.phase !== 'betting' || now < game.current.deadline) return false;
-    const teller = game.players[game.current.teller];
-    game.current.bet = 3;
-    teller.bricks -= 3;
-    finishTurn(game, false, true);
+    if (!['betting', 'attempts'].includes(game.phase) || now < game.current.deadline) return false;
+    const turn = game.current;
+    if (game.phase === 'betting') {
+      turn.bet = 3;
+      game.players[turn.teller].bricks -= 3;
+      finishTurn(game, false, 'betting');
+    } else {
+      // Deadlines advance from the previous deadline, including while backgrounded.
+      while (game.phase === 'attempts' && now >= turn.deadline) {
+        turn.attempts++;
+        turn.attemptResults.push('timeout');
+        if (turn.attempts >= turn.bet) finishTurn(game, false, 'guessing');
+        else turn.deadline += game.seconds * 1000;
+      }
+    }
     return true;
   }
   function bet(game, amount, now = Date.now()) {
@@ -84,22 +95,25 @@
     if (amount > teller.bricks) throw new Error('Not enough bricks.');
     teller.bricks -= amount;
     game.current.bet = amount;
+    game.current.deadline = now + game.seconds * 1000;
     game.phase = 'attempts';
     return true;
   }
   function joker(game, now = Date.now()) {
     if (game.phase !== 'betting' || expire(game, now)) return false;
     const teller = game.players[game.current.teller];
-    if (teller.jokerUsed) return false;
-    teller.jokerUsed = true;
-    game.current.discarded = game.current.word;
+    if (teller.jokersUsed >= game.jokers) return false;
+    teller.jokersUsed++;
+    game.current.discarded.push(game.current.word);
     game.current.word = draw(game);
     return true;
   }
-  function attempt(game, correct) {
-    if (game.phase !== 'attempts') return false;
+  function attempt(game, correct, now = Date.now()) {
+    if (game.phase !== 'attempts' || expire(game, now)) return false;
     game.current.attempts++;
+    game.current.attemptResults.push(correct ? 'correct' : 'incorrect');
     if (correct || game.current.attempts >= game.current.bet) finishTurn(game, Boolean(correct));
+    else game.current.deadline = now + game.seconds * 1000;
     return true;
   }
   function next(game) {
@@ -109,8 +123,22 @@
     game.phase = game.index >= game.schedule.length ? 'finished' : 'shuffle-teller';
     return true;
   }
+  function restore(game, now = Date.now()) {
+    if (game.version === 1) {
+      game.jokers = 1;
+      game.players.forEach(p => { p.jokersUsed = p.jokerUsed ? 1 : 0; delete p.jokerUsed; });
+      for (const turn of [...game.history, ...(game.current ? [game.current] : [])]) {
+        turn.discarded = turn.discarded ? [turn.discarded] : [];
+        turn.attemptResults = Array.from({ length: turn.attempts }, (_, i) => turn.success && i === turn.attempts - 1 ? 'correct' : 'incorrect');
+        if (turn.timeout) turn.timeout = 'betting';
+      }
+      if (game.phase === 'attempts') game.current.deadline = now + game.seconds * 1000;
+      game.version = 2;
+    }
+    return game;
+  }
   function score(player) { return player.guessing + player.telling + player.brickBonus + player.jokerBonus; }
-  const api = { TURNS, BRICKS, shuffle, schedule, createGame, pair, beginBetting, expire, bet, joker, attempt, next, score };
+  const api = { TURNS, BRICKS, shuffle, schedule, createGame, pair, beginBetting, expire, bet, joker, attempt, next, score, restore };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.PyramidEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);

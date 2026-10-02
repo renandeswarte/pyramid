@@ -15,21 +15,21 @@ Then open http://127.0.0.1:4173. Installation and offline caching need localhost
 ## Rules
 
 - 2–10 players; defaults are Renan, Valerie, Thomas, and Chloe.
-- Setup moves through four screens: Players → Words → Time → Length. Short games and the six-turn Classic game are available. Each player gets three starting blue bricks per telling turn and one Joker per game.
+- Setup moves through five screens: Players → Words → Time → Jokers → Length. Short games and the six-turn Classic game are available. Each player gets three starting blue bricks per telling turn and 0, 1, or 2 Jokers per game (one by default).
 - For two players choose 1, 3 or 6 turns per role; for three choose 2, 4 or 6; for four choose 3 or 6. Larger groups can choose six turns or a full round robin of `players − 1` turns. Six-turn Classic starts with 18 bricks; the shortest two-, three- and four-player games start with 3, 6 and 9 respectively.
 - One turn is one word. Bet 1–3 bricks before the 30- or 60-second betting deadline (30 seconds by default). The full bet is committed with no refund for an early success.
-- Each brick buys one spoken clue word and one spoken guess. The teller records each attempt as Correct or Incorrect. There is no guessing timer.
+- Each brick buys one spoken clue word and one spoken guess. The teller records each attempt as Correct or Incorrect. Each clue-and-guess attempt gets a fresh 30- or 60-second timer. Expiry acts as Incorrect and advances to the next attempt, or ends the word if none remain. No extra bricks are charged.
 - A correct guess gives one guessing point to the guesser and one telling point to the teller.
 - A betting timeout spends three bricks, loses the turn, and gives neither player a success point. It still counts as one telling and one guessing turn.
 - The Joker replaces a word before betting and never restarts the timer. Replaced words remain used.
-- After the player's final telling turn, leftover bricks become bonus points added to their guessing score. An unused Joker awards one bonus point. The leaderboard shows all components separately.
+- After the player's final telling turn, leftover bricks become bonus points added to their guessing score. Each unused Joker awards one bonus point. Both Jokers may be used on the same word before betting. The leaderboard shows all components separately.
 - All players with the highest total share the victory. Play again resets scores and the used-word pool.
 
 ## Balanced partners
 
 The schedule has one cycle per chosen turn. Every cycle assigns each player exactly one telling and one guessing turn. A randomized player ring and shuffled cyclic offsets produce partner counts that differ by at most one. Pairings are exactly equal when turns per player are a multiple of `players − 1`. Every offered length for two, three and four players satisfies that condition. The shortest exact game has 1, 2 or 3 turns per role respectively. No player guesses their own word. Consecutive telling turns have different partners whenever there are at least three players.
 
-The selection animation reveals the prepared balanced schedule; it does not make independent, potentially unfair random draws.
+Two-player games skip the guesser animation and go straight to the partner confirmation. The selection animation reveals the prepared balanced schedule; it does not make independent, potentially unfair random draws.
 
 ## Game screens and motion
 
@@ -39,7 +39,7 @@ The stage follows the usable browser height and installed-app safe areas. Short 
 
 ## Privacy and persistence
 
-Session storage protects progress against refresh in the same tab. It does not synchronize devices. Closing the tab can discard progress depending on browser behavior. On refresh or when returning after switching apps, an active word is covered. The betting deadline continues to run while hidden; using a Joker, opening help, and switching tabs never pause it.
+Session storage protects progress against refresh in the same tab. It does not synchronize devices. Closing the tab can discard progress depending on browser behavior. On refresh or when returning after switching apps, an active word is covered. Betting and guessing deadlines continue to run while hidden; using a Joker, opening help, and switching tabs never pause them. Expired guessing attempts are processed on return. Existing saved games retain their one-Joker allowance; an active guessing attempt gets its first timer when upgraded.
 
 The app sends no gameplay data anywhere. A hosting provider still receives ordinary requests for static files.
 

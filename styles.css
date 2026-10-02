@@ -562,3 +562,45 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
   #app[data-screen="recap"] .recap-person { padding:4px; }
   #app[data-screen="recap"] .bonus-banner { padding-top:3px; padding-bottom:3px; }
 }
+
+/* Five setup stops stay evenly spaced on smaller displays. */
+.setup-steps button { min-width:0; flex:1; }
+.joker-choices .length-label { min-height:2.6em; display:flex; align-items:center; justify-content:center; }
+.word-label { line-height:1.5; }
+@media(max-width:1366px) and (pointer:coarse), (max-width:1024px) {
+  .app-shell { padding-top:calc(env(safe-area-inset-top) + 5px); }
+}
+/* Share spare height between the word, attempt, instructions and result controls. */
+@media(min-height:541px) {
+  #app[data-screen="attempts"] .word-panel { justify-content:flex-start; gap:clamp(8px,1.6cqh,20px); }
+  #app[data-screen="attempts"] .word-area { margin:auto 0; }
+  #app[data-screen="attempts"] .word-panel > .eyebrow { margin:0!important; }
+  #app[data-screen="attempts"] .attempt-dots { margin:0; }
+  #app[data-screen="attempts"] .action-pair { margin-top:auto; }
+  #app[data-screen="attempts"] .word-panel > .hint { margin:0; }
+}
+@media(max-width:700px) {
+  .setup-steps button { padding-left:2px; padding-right:2px; }
+  .word-topline .turn-chip { max-width:calc(100% - 90px); line-height:1.6; text-align:left; }
+  .word-controls .joker-button { padding-left:12px; padding-right:12px; font-size:11px; }
+  .word-controls { gap:18px; }
+}
+@media(min-width:701px) and (min-height:541px) {
+  .setup-stage:has(input[data-player="6"]) .players-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+@media(min-width:701px) and (min-height:761px) and (max-height:850px) {
+  #app[data-screen="betting"] .word-area { margin:16px 0; }
+  #app[data-screen="betting"] .word-face { padding-top:16px; padding-bottom:16px; }
+  #app[data-screen="betting"] .word-panel .brick-bank { margin:12px 0 16px; }
+}
+@media(min-width:701px) and (max-height:360px) {
+  .setup-stage .counter-control { margin-bottom:4px; }
+  .setup-stage:has(input[data-player="6"]) .counter-control { margin-bottom:4px; }
+  #app[data-screen="recap"] .play-panel { padding-top:4px; padding-bottom:4px; }
+  .leaderboard-head,.leaderboard-row { padding-top:2px; padding-bottom:2px; }
+}
+
+@media(min-width:701px) and (max-height:360px) {
+  #app[data-screen="recap"] .subtitle { font-size:11px; line-height:1.4; }
+  #app[data-screen="recap"] .bonus-banner { line-height:1.3; }
+}
