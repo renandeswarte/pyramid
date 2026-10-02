@@ -52,6 +52,10 @@ html.ios-covered-viewport body { height:100vh; }
 .setup-body > :last-child { margin-bottom:auto; }
 .setup-navigation { position:static; margin:0; max-width:none; }
 .setup-navigation:before { display:none; }
+/* The full-width setup button touches the stage's clipping edge on phones.
+   Keep its highlight inside its rounded shape instead of clipping an outer glow. */
+.setup-navigation .primary-button,
+html:not(.touch-input) .setup-navigation .primary-button:hover { box-shadow:inset 0 1px 0 #ffffff30; }
 .setup-stage > .start-note { display:block; margin:0; }
 .party-emblem { height:60px; margin-bottom:0; }
 .counter-control { margin:8px auto 16px; }
