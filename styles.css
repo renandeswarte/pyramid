@@ -119,9 +119,31 @@ html.ios-covered-viewport body { height:100vh; }
 .finish-actions { margin:0; flex-direction:row; max-width:none; align-items:stretch; }
 .finish-actions button { min-height:48px; }
 .history-button { display:flex; gap:8px; justify-content:center; align-items:center; padding:8px; justify-self:center; }
-.modal-inner { max-height:calc(100dvh - 48px); }
-.modal-header { position:sticky; top:-28px; padding:12px 0; margin-top:-12px; background:#141e34; z-index:2; }
-dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
+/* Keep dialogs inside the usable screen, including iOS Home Screen safe areas.
+   Only the body scrolls; the title and close target never move with the text. */
+html { --modal-viewport-height:100dvh; --safe-area-bottom:env(safe-area-inset-bottom,0px); }
+html.ios-covered-viewport { --modal-viewport-height:100vh; }
+#modal {
+  --modal-top:calc(var(--safe-area-top) + 24px);
+  --modal-bottom:calc(var(--safe-area-bottom) + 24px);
+  --modal-left:max(16px, env(safe-area-inset-left,0px));
+  --modal-right:max(16px, env(safe-area-inset-right,0px));
+  --modal-max-height:min(760px, calc(var(--modal-viewport-height) - var(--modal-top) - var(--modal-bottom)));
+  position:fixed; inset:var(--modal-top) var(--modal-right) var(--modal-bottom) var(--modal-left);
+  margin:auto; width:540px; max-width:calc(100% - var(--modal-left) - var(--modal-right));
+  max-height:var(--modal-max-height); overflow:hidden;
+}
+#modal .modal-inner { display:flex; flex-direction:column; padding:0; overflow:hidden; max-height:calc(var(--modal-max-height) - 2px); }
+#modal .modal-header { position:static; flex:none; margin:0; padding:18px 22px; border-bottom:1px solid var(--line); background:#141e34; }
+#modal .modal-header h2 { min-width:0; overflow-wrap:anywhere; }
+#modal .modal-header .icon-button { width:44px; height:44px; flex-shrink:0; color:var(--ink); }
+#modal .modal-body { min-height:0; overflow:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:20px 22px 24px; scrollbar-width:thin; overflow-wrap:anywhere; }
+#modal .modal-body > :last-child { margin-bottom:0; }
+#modal .modal-body:focus-visible { outline:2px solid var(--blue); outline-offset:-4px; }
+@media(max-height:540px) {
+  #modal .modal-header { padding:10px 18px; }
+  #modal .modal-body { padding:14px 18px 18px; }
+}
 
 @media(max-width:700px) {
   .app-shell { grid-template-rows:60px minmax(0,1fr); padding-left:max(18px,env(safe-area-inset-left)); padding-right:max(18px,env(safe-area-inset-right)); }
@@ -163,7 +185,6 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
   .leaderboard-name { font-size:12px; gap:4px; }
   .leaderboard-name .avatar { display:none; }
   .leaderboard-head { font-size:8px; }
-  .modal-header { top:-23px; }
 }
 
 /* Short browser windows, including tablet landscape and visible mobile controls. */

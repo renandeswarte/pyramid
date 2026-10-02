@@ -1,5 +1,5 @@
 /* Local files only. Gameplay and target words are never sent to a server. */
-const CACHE = 'pyramid-static-v30';
+const CACHE = 'pyramid-static-v31';
 const FILES = [
   './', './index.html', './styles.css', './engine.js', './app.js', './data/words.js',
   './manifest.webmanifest', './manifest.fr.webmanifest', './assets/icon.svg', './assets/icon-180.png',

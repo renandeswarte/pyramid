@@ -378,7 +378,7 @@
   }
   function clearGame() { stopAnimation(); game = null; setupStep = 0; stepDirection = 1; privacy = false; hiddenWord = false; setupError = ''; try { sessionStorage.removeItem(storageKey); } catch {} save(); render(); }
   function openModal(title, content, actions = '') {
-    document.getElementById('modal-content').innerHTML = `<div class="modal-inner"><div class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="${t('Close dialog')}">${icon('close', 18)}</button></div>${content}${actions}</div>`;
+    document.getElementById('modal-content').innerHTML = `<div class="modal-inner"><div class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="${t('Close dialog')}">${icon('close', 18)}</button></div><div class="modal-body" tabindex="0">${content}${actions}</div></div>`;
     if (!modal.open) modal.showModal();
   }
   function rules() { openModal(t('How to play'), t('rules.content')); }
