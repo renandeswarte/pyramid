@@ -14,6 +14,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
   <script src="data/words.js" defer></script>
+  <script src="data/fr/words.js" defer></script>
+  <script src="i18n.js" defer></script>
   <script src="engine.js" defer></script>
   <script src="app.js" defer></script>
 </head>
@@ -21,13 +23,13 @@
   <div class="app-shell">
     <header class="app-header">
       <a class="brand" href="./" aria-label="Pyramid home"><img src="assets/icon.svg" width="38" height="38" alt=""><span>Pyramid</span></a>
-      <div class="header-actions"><button class="quiet-button" id="rules-button">How to play</button><button class="icon-button" id="about-button" aria-label="About Pyramid" title="About & word sources"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 11v6M12 7v.2"/></svg></button><button class="icon-button" id="sound-button" aria-label="Mute sound" aria-pressed="false"></button></div>
+      <div class="header-actions"><button class="quiet-button" id="rules-button">How to play</button><button class="icon-button" id="about-button" aria-label="About Pyramid" title="About & word sources"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 11v6M12 7v.2"/></svg></button><button class="icon-button" id="sound-button" aria-label="Mute sound" aria-pressed="false"></button><button class="icon-button language-button" id="language-button" aria-label="Choose language" aria-haspopup="dialog"><span aria-hidden="true">🇬🇧</span></button></div>
     </header>
     <main id="app" tabindex="-1"></main>
     <footer class="app-footer"><span>FEWER CLUES. MORE POINTS.</span><button class="quiet-button install-button" id="install-button" hidden>Install app</button><span>ONE WORD AT A TIME</span></footer>
   </div>
   <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
   <div id="announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-  <noscript><p class="noscript">Please enable JavaScript to play Pyramid. All gameplay stays on your device.</p></noscript>
+  <noscript><p class="noscript" lang="en">Please enable JavaScript to play Pyramid. All gameplay stays on your device.</p><p class="noscript" lang="fr">Activez JavaScript pour jouer à Pyramid. La partie reste sur votre appareil.</p></noscript>
 </body>
 </html>

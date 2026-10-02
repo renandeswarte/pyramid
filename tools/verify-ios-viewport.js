@@ -16,6 +16,7 @@ async page => {
  document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');s.textContent=`:root{--safe-area-top:${top}px}.app-shell{padding-top:${top+(innerWidth<=1024?5:0)}px;padding-bottom:${bottom}px}.keyboard-open .app-shell{padding-bottom:0}`;document.head.append(s)});
  },{top,bottom,missing,standalone});
  await p.goto('http://127.0.0.1:4173/');
+ for(let i=0;i<4;i++)await p.locator(`[data-player="${i}"]`).fill(['Alice','Bob','Camille','Dan'][i]);
  const settle=()=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  for(let step=0;step<5;step++){
  await settle();const m=await p.evaluate(()=>{const pane=document.querySelector('.setup-body'),nav=document.querySelector('.setup-navigation').getBoundingClientRect();return {bodyHeight:document.body.clientHeight,inlineHeight:document.body.style.height,overflow:pane.scrollHeight-pane.clientHeight,navBottom:nav.bottom,screen:document.querySelector('#app').dataset.screen,covered:document.documentElement.classList.contains('ios-covered-viewport')};});

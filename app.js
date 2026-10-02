@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const E = window.PyramidEngine;
-  const WORDS = window.PyramidWords || {};
+  const wordDecks = { en: window.PyramidWords || {}, fr: window.PyramidWordsFr || {} };
   const app = document.getElementById('app');
   const modal = document.getElementById('modal');
   const standaloneDisplay = matchMedia('(display-mode: standalone)');
@@ -30,17 +30,18 @@
   document.addEventListener('pointerdown', inputMode, { passive: true });
   document.addEventListener('pointermove', inputMode, { passive: true });
   const storageKey = 'pyramid-game-v1';
-  const preferencesKey = 'pyramid-preferences-v1';
-  const defaults = ['Renan', 'Valerie', 'Thomas', 'Chloe'];
+  const preferencesKey = 'pyramid-preferences-v2';
+  const defaults = ['', '', '', ''];
+  const detectedLanguage = (navigator.languages?.[0] || navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en';
   const categories = [
     ['global', 'Global', 'Everyday words. Endless possibilities.', 'globe'], ['food', 'Food', 'Food & drink', 'food'],
     ['animals', 'Animals', 'Wild & wonderful', 'animal'], ['geography', 'Geography', 'Places & landscapes', 'map'],
     ['body', 'Human Body', 'Head to toe', 'body'], ['kids', 'Kids', 'Ages 11 & under', 'sun'], ['teens', 'Teens', 'Ages 12 & up', 'spark']
   ];
-  let settings = { names: [...defaults], category: 'global', seconds: 30, turns: 6, jokers: 1, muted: false };
+  let settings = { language: detectedLanguage, names: [...defaults], category: 'global', seconds: 30, turns: 6, jokers: 1, muted: false };
   let setupStep = 0, stepDirection = 1, lastScreen = '', leaderboardPage = 0;
   let game = null, animationTimer = null, animationEnd = null, hiddenWord = false, privacy = false, setupError = '', lastTick = null;
-  let audioContext = null, installPrompt = null, storageAvailable = true;
+  let audioContext = null, installPrompt = null, storageAvailable = true, preferencesAvailable = true;
   const paths = {
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/>',
     food: '<path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3v18M18 3c-5 4-5 10 0 10"/>',
@@ -61,6 +62,7 @@
     trophy: '<path d="M7 3h10v5a5 5 0 0 1-10 0ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 13v5m-4 3v-3h8v3Z"/>',
     gem: '<path d="m12 2 9 8-9 12L3 10ZM3 10h18M7 6l5 16 5-16"/>',
     pair: '<path d="M5 12h14M9 8l-4 4 4 4m6-8 4 4-4 4"/>',
+    book: '<path d="M12 5v16M12 5C9 2 5 2 2 4v16c3-2 7-2 10 1 3-3 7-3 10-1V4c-3-2-7-2-10 1Z"/>',
     pencil: '<path d="m16 3 5 5-12 12-6 1 1-6ZM14 5l5 5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>'
   };
@@ -70,14 +72,42 @@
   function announce(text) { document.getElementById('announcement').textContent = text; }
   function readStorage(key) { try { return JSON.parse(sessionStorage.getItem(key)); } catch { return null; } }
   function writeStorage(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { storageAvailable = false; } }
-  function save() { if (game) writeStorage(storageKey, game); writeStorage(preferencesKey, settings); }
-  const storedSettings = readStorage(preferencesKey);
-  if (storedSettings && Array.isArray(storedSettings.names) && storedSettings.names.length >= 2 && storedSettings.names.length <= 10 && storedSettings.names.every(n => typeof n === 'string')) {
-    settings = { ...settings, ...storedSettings, jokers: [0, 1, 2].includes(storedSettings.jokers) ? storedSettings.jokers : 1, seconds: [30, 60].includes(storedSettings.seconds) ? storedSettings.seconds : 30, category: categories.some(c => c[0] === storedSettings.category) ? storedSettings.category : 'global' };
+  function t(key, values) { return window.PyramidI18n.text(settings.language, key, values); }
+  function isSingular(n) { return new Intl.PluralRules(settings.language).select(n) === 'one'; }
+  function categoryName(id) { return t(categories.find(c => c[0] === id)?.[1] || id); }
+  function deck(language = settings.language) { return wordDecks[language] || wordDecks.en; }
+  function languageName(language) { return language === 'fr' ? 'Français' : 'English'; }
+  function save() {
+    if (game) writeStorage(storageKey, game);
+    try { localStorage.setItem(preferencesKey, JSON.stringify(settings)); preferencesAvailable = true; }
+    catch { preferencesAvailable = false; writeStorage(preferencesKey, settings); }
+  }
+  let storedSettings;
+  try { storedSettings = JSON.parse(localStorage.getItem(preferencesKey)); }
+  catch { preferencesAvailable = false; }
+  if (!storedSettings) storedSettings = readStorage(preferencesKey);
+  if (!storedSettings) {
+    const legacy = readStorage('pyramid-preferences-v1');
+    if (legacy) {
+      storedSettings = { ...legacy };
+      // These were shipped defaults, not a new visitor's chosen player names.
+      if (JSON.stringify(legacy.names) === JSON.stringify(['Renan', 'Valerie', 'Thomas', 'Chloe'])) storedSettings.names = [...defaults];
+    }
+  }
+  if (storedSettings && typeof storedSettings === 'object') {
+    const names = storedSettings.names;
+    if (Array.isArray(names) && names.length >= 2 && names.length <= 10 && names.every(n => typeof n === 'string' && n.length <= 24)) settings.names = [...names];
+    if (['en', 'fr'].includes(storedSettings.language)) settings.language = storedSettings.language;
+    if ([0, 1, 2].includes(storedSettings.jokers)) settings.jokers = storedSettings.jokers;
+    if ([30, 60].includes(storedSettings.seconds)) settings.seconds = storedSettings.seconds;
+    if (categories.some(c => c[0] === storedSettings.category)) settings.category = storedSettings.category;
+    if (turnOptions().includes(storedSettings.turns)) settings.turns = storedSettings.turns;
+    if (typeof storedSettings.muted === 'boolean') settings.muted = storedSettings.muted;
   }
   const saved = readStorage(storageKey);
   if (saved && [1, 2].includes(saved.version) && Array.isArray(saved.players) && Array.isArray(saved.schedule) && Array.isArray(saved.deck) && Array.isArray(saved.history) && Number.isInteger(saved.index) && saved.index >= 0 && saved.index <= saved.schedule.length && ['shuffle-teller', 'handoff', 'shuffle-guesser', 'ready', 'betting', 'attempts', 'recap', 'finished'].includes(saved.phase)) {
     game = E.restore(saved);
+    game.language = game.language === 'fr' ? 'fr' : 'en';
     game.turns ||= 6;
     game.startingBricks ||= game.turns * 3;
     if (game.phase === 'shuffle-teller') game.phase = 'handoff';
@@ -89,8 +119,8 @@
     const button = document.getElementById('sound-button');
     button.innerHTML = icon(settings.muted ? 'mute' : 'volume', 19);
     button.setAttribute('aria-pressed', String(settings.muted));
-    button.setAttribute('aria-label', settings.muted ? 'Turn sound on' : 'Mute sound');
-    button.title = settings.muted ? 'Sound off' : 'Sound on';
+    button.setAttribute('aria-label', t(settings.muted ? 'Turn sound on' : 'Mute sound'));
+    button.title = t(settings.muted ? 'Sound off' : 'Sound on');
   }
   function activateAudio() {
     try {
@@ -118,61 +148,59 @@
     normalizeTurns();
     const titles = ['Who’s at the table?', 'Pick your words.', 'Set the pace.', 'A little room for magic.', 'How big is your Pyramid?'];
     const subtitles = ['Good company. One device. Let’s make some guesses.', 'Pick a world of words for everyone to play with.', 'The same time limit for your bet and each clue + guess.', 'Choose how many word swaps each player gets for the whole game.', 'A quick round or a longer game? Everyone gets equal turns.'];
+    const eyebrows = ['THE WORD GAME FOR GOOD COMPANY', 'A WORLD OF POSSIBILITIES', 'A LITTLE PRESSURE. A LOT OF FUN.', 'YOUR SECRET RESERVE', 'MAKE EVERY CLUE COUNT'];
     let content;
-    if (setupStep === 0) content = `<div class="party-emblem" aria-hidden="true"><span class="gem"></span><span class="gem"></span><span class="gem"></span></div><div class="counter-control"><button class="small-button" data-action="remove-player" aria-label="Remove last player" ${settings.names.length <= 2 ? 'disabled' : ''}>${icon('minus', 18)}</button><strong>${settings.names.length} <span>players</span></strong><button class="small-button" data-action="add-player" aria-label="Add player" ${settings.names.length >= 10 ? 'disabled' : ''}>${icon('plus', 18)}</button></div><div class="players-grid">${settings.names.map((name, id) => `<label class="player-input" style="--i:${id}">${avatar({ name, id })}<span class="sr-only">Player ${id + 1} name</span><input data-player="${id}" value="${escape(name)}" maxlength="24" autocomplete="off" spellcheck="false" required placeholder="Player ${id + 1}"><span class="name-edit-icon" aria-hidden="true">${icon('pencil', 16)}</span></label>`).join('')}</div><p class="setup-tip">${icon('pair', 16)} Tell a word. Guess a word. Take turns being brilliant.</p>`;
-    else if (setupStep === 1) content = `<div class="category-grid">${categories.map(([id, name, label, symbol], i) => `<button class="category ${id === 'global' ? 'category-global' : ''}" style="--i:${i}" data-action="category" data-category="${id}" aria-pressed="${settings.category === id}"><span class="category-symbol">${icon(symbol, 28)}</span><span class="category-name">${name}<span class="category-meta">${id === 'global' ? label : id === 'kids' ? 'Ages 11 & under' : id === 'teens' ? 'Ages 12 & up' : label}</span></span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><p class="setup-tip">${icon('globe', 16)} English · ${WORDS[settings.category].length.toLocaleString()} words in this deck</p>`;
-    else if (setupStep === 2) content = `<div class="time-choices">${[30, 60].map((seconds, i) => `<button class="time-choice" style="--i:${i}" data-action="time" data-seconds="${seconds}" aria-pressed="${settings.seconds === seconds}"><span class="time-dial">${icon('clock', 42)}</span><strong>${seconds}<small>seconds</small></strong><span>${seconds === 30 ? 'Keep it moving' : 'Room to think'}</span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('clock', 20)}<p>Place your bet before the clock runs out.<br><strong>Bet timeout: turn lost. Guess timeout: attempt lost.</strong></p></div>`;
-    else if (setupStep === 3) content = `<div class="length-choices joker-choices">${[0, 1, 2].map((n, i) => `<button class="length-choice" style="--i:${i}" data-action="jokers" data-jokers="${n}" aria-pressed="${settings.jokers === n}"><span class="length-label">${['All in', 'A second chance', 'More possibilities'][n]}</span><strong>${n}</strong><span>${n === 1 ? 'Joker' : 'Jokers'} each</span><small>${n === 0 ? 'Play every word' : `Up to +${n} bonus ${n === 1 ? 'point' : 'points'}`}</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('spark', 20)}<p>Swap a word before you bet. The timer keeps running.<br><strong>Each unused Joker earns 1 bonus point.</strong></p></div>`;
-    else content = `<div class="length-choices">${turnOptions().map((turns, i) => `<button class="length-choice" style="--i:${i}" data-action="length" data-turns="${turns}" aria-pressed="${settings.turns === turns}"><span class="length-label">${turns === 6 ? 'Classic' : turns === settings.names.length - 1 ? (turns < 6 ? 'Quick game' : 'Round robin') : 'A little longer'}</span><strong>${turns}</strong><span>${turns === 1 ? 'turn' : 'turns'} each, per role</span><small>${settings.names.length * turns} words · ${turns * 3} bricks each</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="balance-note">${icon('pair', 22)}<div><strong>${settings.turns % (settings.names.length - 1) === 0 ? 'Every partner. Exactly equal.' : 'Equal roles. Balanced partners.'}</strong><p>${settings.turns % (settings.names.length - 1) === 0 ? `Each player tells to every other player ${settings.turns / (settings.names.length - 1) === 1 ? 'once' : settings.turns / (settings.names.length - 1) + ' times'}, and guesses for them equally.` : 'Everyone tells and guesses the same number of times. Partner counts differ by at most one.'}</p></div></div><div class="launch-summary"><span>${settings.names.length} players</span><i></i><span>${categories.find(c => c[0] === settings.category)[1]}</span><i></i><span>${settings.seconds}s per timer</span><i></i><span>${settings.jokers} ${settings.jokers === 1 ? 'Joker' : 'Jokers'} each</span></div>`;
-    return `<section class="setup-stage"><nav class="setup-steps" aria-label="Game setup">${['Players', 'Words', 'Time', 'Jokers', 'Length'].map((name, i) => `<button data-action="setup-step" data-step="${i}" class="${i === setupStep ? 'current' : i < setupStep ? 'complete' : ''}" ${i > setupStep ? 'disabled' : ''} ${i === setupStep ? 'aria-current="step"' : ''}><span>${i < setupStep ? icon('check', 12) : i + 1}</span><small>${name}</small></button>`).join('')}</nav><div class="setup-content ${lastScreen !== 'setup-' + setupStep ? 'stage-enter' : ''}" style="--direction:${stepDirection}"><div class="setup-heading"><p class="eyebrow">${['THE WORD GAME FOR GOOD COMPANY', 'A WORLD OF POSSIBILITIES', 'A LITTLE PRESSURE. A LOT OF FUN.', 'YOUR SECRET RESERVE', 'MAKE EVERY CLUE COUNT'][setupStep]}</p><h1>${titles[setupStep]}</h1><p class="subtitle">${subtitles[setupStep]}</p></div><div class="setup-body">${content}</div><p id="setup-error" class="error-message" role="alert" ${!setupError ? 'hidden' : ''}>${escape(setupError)}</p></div><div class="setup-navigation">${setupStep ? `<button class="secondary-button" data-action="setup-back">← Back</button>` : ''}<button class="primary-button" data-action="${setupStep === 4 ? 'start' : 'setup-next'}">${setupStep === 4 ? icon('spark', 19) + ' Let’s play' : ['Choose your words', 'Set the time', 'Choose your Jokers', 'Choose game length'][setupStep] + ' <span aria-hidden="true">→</span>'}</button></div><p class="start-note">${setupStep === 0 ? 'Edit the names. Invite 2–10 players.' : setupStep === 4 ? 'Fewer clues. More points. One shared device.' : `STEP ${setupStep + 1} OF 5`}</p></section>`;
+    if (setupStep === 0) content = `<div class="party-emblem" aria-hidden="true"><span class="gem"></span><span class="gem"></span><span class="gem"></span></div><div class="counter-control"><button class="small-button" data-action="remove-player" aria-label="${t('Remove last player')}" ${settings.names.length <= 2 ? 'disabled' : ''}>${icon('minus', 18)}</button><strong>${settings.names.length} <span>${t('players')}</span></strong><button class="small-button" data-action="add-player" aria-label="${t('Add player')}" ${settings.names.length >= 10 ? 'disabled' : ''}>${icon('plus', 18)}</button></div><div class="players-grid">${settings.names.map((name, id) => `<label class="player-input" style="--i:${id}">${avatar({ name, id })}<span class="sr-only">${t('Player {n} name', {n:id + 1})}</span><input data-player="${id}" value="${escape(name)}" maxlength="24" autocomplete="off" spellcheck="false" required placeholder="${t('Player {n}', {n:id + 1})}"><span class="name-edit-icon" aria-hidden="true">${icon('pencil', 16)}</span></label>`).join('')}</div><p class="setup-tip">${icon('pair', 16)} ${t('Tell a word. Guess a word. Take turns being brilliant.')}</p>`;
+    else if (setupStep === 1) content = `<div class="category-grid">${categories.map(([id, name, label, symbol], i) => `<button class="category ${id === 'global' ? 'category-global' : ''}" style="--i:${i}" data-action="category" data-category="${id}" aria-pressed="${settings.category === id}"><span class="category-symbol">${icon(symbol, 28)}</span><span class="category-name">${t(name)}<span class="category-meta">${t(label)}</span></span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><p class="setup-tip">${icon('globe', 16)} ${t('{language} · {count} words in this deck', {language:languageName(settings.language),count:deck()[settings.category].length.toLocaleString(settings.language)})}</p>`;
+    else if (setupStep === 2) content = `<div class="time-choices">${[30, 60].map((seconds, i) => `<button class="time-choice" style="--i:${i}" data-action="time" data-seconds="${seconds}" aria-pressed="${settings.seconds === seconds}"><span class="time-dial">${icon('clock', 42)}</span><strong>${seconds}<small>${t('seconds')}</small></strong><span>${t(seconds === 30 ? 'Keep it moving' : 'Room to think')}</span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('clock', 20)}<p>${t('Place your bet before the clock runs out.')}<br><strong>${t('Bet timeout: turn lost. Guess timeout: attempt lost.')}</strong></p></div>`;
+    else if (setupStep === 3) content = `<div class="length-choices joker-choices">${[0, 1, 2].map((n, i) => `<button class="length-choice" style="--i:${i}" data-action="jokers" data-jokers="${n}" aria-pressed="${settings.jokers === n}"><span class="length-label">${t(['All in', 'A second chance', 'More possibilities'][n])}</span><strong>${n}</strong><span>${t(isSingular(n) ? 'Joker each' : 'Jokers each')}</span><small>${n === 0 ? t('Play every word') : t(isSingular(n) ? 'Up to +{n} bonus point' : 'Up to +{n} bonus points',{n})}</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('spark', 20)}<p>${t('Swap a word before you bet. The timer keeps running.')}<br><strong>${t('Each unused Joker earns 1 bonus point.')}</strong></p></div>`;
+    else content = `<div class="length-choices">${turnOptions().map((turns, i) => `<button class="length-choice" style="--i:${i}" data-action="length" data-turns="${turns}" aria-pressed="${settings.turns === turns}"><span class="length-label">${t(turns === 6 ? 'Classic' : turns === settings.names.length - 1 ? (turns < 6 ? 'Quick game' : 'Round robin') : 'A little longer')}</span><strong>${turns}</strong><span>${t(turns === 1 ? 'turn each, per role' : 'turns each, per role')}</span><small>${t('{words} words · {bricks} bricks each',{words:settings.names.length * turns,bricks:turns * 3})}</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="balance-note">${icon('pair', 22)}<div><strong>${t(settings.turns % (settings.names.length - 1) === 0 ? 'Every partner. Exactly equal.' : 'Equal roles. Balanced partners.')}</strong><p>${settings.turns % (settings.names.length - 1) === 0 ? t(settings.turns / (settings.names.length - 1) === 1 ? 'Each player tells to every other player once, and guesses for them equally.' : 'Each player tells to every other player {n} times, and guesses for them equally.',{n:settings.turns / (settings.names.length - 1)}) : t('Everyone tells and guesses the same number of times. Partner counts differ by at most one.')}</p></div></div><div class="launch-summary"><span>${t('{n} players',{n:settings.names.length})}</span><i></i><span>${categoryName(settings.category)}</span><i></i><span>${t('{n}s per timer',{n:settings.seconds})}</span><i></i><span>${t(isSingular(settings.jokers) ? '{n} Joker each' : '{n} Jokers each',{n:settings.jokers})}</span></div>`;
+    return `<section class="setup-stage"><nav class="setup-steps" aria-label="${t('Game setup')}">${['Players', 'Words', 'Time', 'Jokers', 'Length'].map((name, i) => `<button data-action="setup-step" data-step="${i}" class="${i === setupStep ? 'current' : i < setupStep ? 'complete' : ''}" ${i > setupStep ? 'disabled' : ''} ${i === setupStep ? 'aria-current="step"' : ''}><span>${i < setupStep ? icon('check', 12) : i + 1}</span><small>${t(name)}</small></button>`).join('')}</nav><div class="setup-content ${lastScreen !== 'setup-' + setupStep ? 'stage-enter' : ''}" style="--direction:${stepDirection}"><div class="setup-heading"><p class="eyebrow">${t(eyebrows[setupStep])}</p><h1>${t(titles[setupStep])}</h1><p class="subtitle">${t(subtitles[setupStep])}</p></div><div class="setup-body">${content}</div><p id="setup-error" class="error-message" role="alert" ${!setupError ? 'hidden' : ''}>${escape(setupError)}</p></div><div class="setup-navigation">${setupStep ? `<button class="secondary-button" data-action="setup-back">${t('← Back')}</button>` : ''}<button class="primary-button" data-action="${setupStep === 4 ? 'start' : 'setup-next'}">${setupStep === 4 ? icon('spark', 19) + ' ' + t('Let’s play') : t(['Choose your words', 'Set the time', 'Choose your Jokers', 'Choose game length'][setupStep]) + ' <span aria-hidden="true">→</span>'}</button></div><p class="start-note">${setupStep === 0 ? t('Edit the names. Invite 2–10 players.') : setupStep === 4 ? t('Fewer clues. More points. One shared device.') : t('STEP {n} OF 5',{n:setupStep + 1})}</p></section>`;
   }
   function scoreList() {
-    return game.players.map(p => `<div class="score-player ${E.pair(game)?.teller === p.id && game.phase !== 'finished' ? 'active' : ''}">${avatar(p)}<div class="score-name">${escape(p.name)}<span class="score-meta">${p.told}/${game.turns} told · ${p.guessed}/${game.turns} guessed</span></div><span class="score-number">${E.score(p)}</span></div>`).join('');
+    return game.players.map(p => `<div class="score-player ${E.pair(game)?.teller === p.id && game.phase !== 'finished' ? 'active' : ''}">${avatar(p)}<div class="score-name">${escape(p.name)}<span class="score-meta">${t('{told}/{total} told · {guessed}/{total} guessed',{told:p.told,total:game.turns,guessed:p.guessed})}</span></div><span class="score-number">${E.score(p)}</span></div>`).join('');
   }
   function toolbar() {
-    return `<div class="game-toolbar"><div class="game-progress"><div class="progress-bar" aria-hidden="true"><i style="width:${game.history.length / game.schedule.length * 100}%"></i></div><span>${game.phase === 'finished' ? 'Game complete' : `Turn ${game.index + 1} of ${game.schedule.length}`}</span></div><div class="toolbar-actions"><button class="utility-button" data-action="scores">${icon('trophy', 15)} Scores</button><button class="utility-button end-game-button" data-action="end-game">${icon('close', 15)} End Game</button></div></div>`;
+    return `<div class="game-toolbar"><div class="game-progress"><div class="progress-bar" aria-hidden="true"><i style="width:${game.history.length / game.schedule.length * 100}%"></i></div><span>${game.phase === 'finished' ? t('Game complete') : t('Turn {n} of {total}',{n:game.index + 1,total:game.schedule.length})}</span></div><div class="toolbar-actions"><button class="utility-button" data-action="scores">${icon('trophy', 15)} ${t('Scores')}</button><button class="utility-button end-game-button" data-action="end-game">${icon('close', 15)} ${t('End Game')}</button></div></div>`;
   }
   function selection(guesser) {
     const pair = E.pair(game);
     const people = game.players.filter(p => !guesser || p.id !== pair.teller);
-    return `<p class="eyebrow">${guesser ? 'BUILDING YOUR DUO' : 'THE NEXT TELLER'}</p><h1>${guesser ? 'Find your partner.' : 'Who’s up next?'}</h1><p class="subtitle">${guesser ? `Let’s find a guesser for ${escape(game.players[pair.teller].name)}.` : 'The spotlight is looking for you.'}</p><div class="selection-arena" id="selection-arena"><div class="orbit-track" aria-hidden="true"></div><div class="orbit-track second" aria-hidden="true"></div><div class="orbit-sweep" aria-hidden="true"></div><div class="orbit-sparks" aria-hidden="true">${Array.from({length: 6}, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>${people.map((p, i) => `<div class="orbit-player" data-bubble="${p.id}" style="--angle:${i * 360 / people.length}deg;--counter-angle:${-i * 360 / people.length}deg;--i:${i}">${avatar(p)}<span>${escape(p.name)}</span></div>`).join('')}<div class="selection-focus"><div class="focus-halo" aria-hidden="true"></div><div id="selection-face">${avatar(people[0], true)}</div><strong id="selection-name">${escape(people[0].name)}</strong><span id="selection-label">${guesser ? 'Finding your guesser' : 'Taking the spotlight'}</span></div></div><div class="reveal-meter" aria-hidden="true"><i></i></div><p class="selection-caption" id="selection-caption">${icon('shuffle', 14)} A little suspense. A fair match.</p>`;
+    return `<p class="eyebrow">${t(guesser ? 'BUILDING YOUR DUO' : 'THE NEXT TELLER')}</p><h1>${t(guesser ? 'Find your partner.' : 'Who’s up next?')}</h1><p class="subtitle">${guesser ? t('Let’s find a guesser for {name}.',{name:escape(game.players[pair.teller].name)}) : t('The spotlight is looking for you.')}</p><div class="selection-arena" id="selection-arena"><div class="orbit-track" aria-hidden="true"></div><div class="orbit-track second" aria-hidden="true"></div><div class="orbit-sweep" aria-hidden="true"></div><div class="orbit-sparks" aria-hidden="true">${Array.from({length:6},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</div>${people.map((p,i)=>`<div class="orbit-player" data-bubble="${p.id}" style="--angle:${i * 360 / people.length}deg;--counter-angle:${-i * 360 / people.length}deg;--i:${i}">${avatar(p)}<span>${escape(p.name)}</span></div>`).join('')}<div class="selection-focus"><div class="focus-halo" aria-hidden="true"></div><div id="selection-face">${avatar(people[0],true)}</div><strong id="selection-name">${escape(people[0].name)}</strong><span id="selection-label">${t(guesser ? 'Finding your guesser' : 'Taking the spotlight')}</span></div></div><div class="reveal-meter" aria-hidden="true"><i></i></div><p class="selection-caption" id="selection-caption">${icon('shuffle',14)} ${t('A little suspense. A fair match.')}</p>`;
   }
   function handoff() {
-    const teller = game.players[E.pair(game).teller];
-    return `<div class="handoff-avatar">${avatar(teller, true)}</div><p class="eyebrow">YOUR NEXT TELLER</p><h1>Pass it to ${escape(teller.name)}.</h1><p class="subtitle">Take the device. Keep the screen to yourself.</p><span class="pill">Telling turn ${teller.told + 1} of ${game.turns}</span><button class="primary-button" data-action="find-guesser">I’m ${escape(teller.name)}. I’m ready.</button><p class="hint">Your word stays hidden until you’re ready to bet.</p>`;
+    const teller=game.players[E.pair(game).teller];
+    return `<div class="handoff-avatar">${avatar(teller,true)}</div><p class="eyebrow">${t('YOUR NEXT TELLER')}</p><h1>${t('Pass it to {name}.',{name:escape(teller.name)})}</h1><p class="subtitle">${t('Take the device. Keep the screen to yourself.')}</p><span class="pill">${t('Telling turn {n} of {total}',{n:teller.told+1,total:game.turns})}</span><button class="primary-button" data-action="find-guesser">${t('I’m {name}. I’m ready.',{name:escape(teller.name)})}</button><p class="hint">${t('Your word stays hidden until you’re ready to bet.')}</p>`;
   }
   function ready() {
-    const pair = E.pair(game), teller = game.players[pair.teller], guesser = game.players[pair.guesser];
-    return `<p class="eyebrow">${teller.told === game.turns - 1 ? 'YOUR FINAL TELLING TURN' : `TELLING TURN ${teller.told + 1} OF ${game.turns}`}</p><h1>You’re playing together.</h1><div class="player-pair"><div class="pair-person">${avatar(teller, true)}<strong>${escape(teller.name)}</strong><small>Teller</small></div><span class="pair-divider">${icon('pair', 24)}</span><div class="pair-person">${avatar(guesser, true)}<strong>${escape(guesser.name)}</strong><small>Guesser</small></div></div><p class="subtitle">${escape(teller.name)}, only you should see the word.</p><span class="pill">${icon('clock', 15)} ${game.seconds} seconds to bet</span><button class="primary-button" data-action="reveal">Reveal word & start timer</button><p class="hint">If time runs out: 3 bricks spent, turn lost.<br>Give your clues and make your guesses aloud.</p>`;
+    const pair=E.pair(game),teller=game.players[pair.teller],guesser=game.players[pair.guesser];
+    return `<p class="eyebrow">${teller.told===game.turns-1?t('YOUR FINAL TELLING TURN'):t('TELLING TURN {n} OF {total}',{n:teller.told+1,total:game.turns})}</p><h1>${t('You’re playing together.')}</h1><div class="player-pair"><div class="pair-person">${avatar(teller,true)}<strong>${escape(teller.name)}</strong><small>${t('Teller')}</small></div><span class="pair-divider">${icon('pair',24)}</span><div class="pair-person">${avatar(guesser,true)}<strong>${escape(guesser.name)}</strong><small>${t('Guesser')}</small></div></div><p class="subtitle">${t('{name}, only you should see the word.',{name:escape(teller.name)})}</p><span class="pill">${icon('clock',15)} ${t('{n} seconds to bet',{n:game.seconds})}</span><button class="primary-button" data-action="reveal">${t('Reveal word & start timer')}</button><p class="hint">${t('If time runs out: 3 bricks spent, turn lost.')}<br>${t('Give your clues and make your guesses aloud.')}</p>`;
   }
   function wordScreen() {
-    const turn = game.current, teller = game.players[turn.teller], guesser = game.players[turn.guesser];
-    const betting = game.phase === 'betting';
-    const remainingJokers = game.jokers - teller.jokersUsed;
-    return `<div class="word-topline"><span class="turn-chip">${escape(teller.name)} · Telling turn ${teller.told + 1}/${game.turns}${betting ? '' : ` · ${turn.bet} ${turn.bet === 1 ? 'brick' : 'bricks'} bet`}</span><div class="clock" id="clock" role="timer" aria-label="${betting ? 'Betting' : 'Guessing'} time remaining">${icon('clock', 18)}<span id="seconds">${Math.max(0, Math.ceil((turn.deadline - Date.now()) / 1000))}s</span></div></div>
-      <div class="word-area"><div class="word-face"><p class="word-label">${hiddenWord ? 'YOUR WORD IS HIDDEN' : 'YOUR WORD TO TELL'} – ${escape(categories.find(c => c[0] === game.category)?.[1] || game.category).toUpperCase()}</p><h1 class="secret-word ${hiddenWord ? 'word-hidden' : ''}">${hiddenWord ? 'Ready when you are.' : escape(turn.word)}</h1></div><div class="word-controls"><button class="utility-button hide-word-button" data-action="hide-word" aria-pressed="${hiddenWord}">${icon(hiddenWord ? 'eye' : 'eyeOff', 16)} ${hiddenWord ? 'Show word' : 'Hide word'}</button>${betting && game.jokers > 0 ? `<button class="utility-button joker-button" data-action="joker" ${remainingJokers === 0 ? 'disabled' : ''}>${icon('spark', 18)} ${remainingJokers ? `Use Joker · ${remainingJokers} left` : 'No Jokers left'}</button>` : ''}</div></div>
-      ${betting ? `<div class="bricks-display"><span class="gem" aria-hidden="true"></span><strong>${teller.bricks}</strong> bricks left</div><div class="brick-bank" aria-hidden="true">${Array.from({ length: game.startingBricks }, (_, i) => `<span class="gem ${i >= teller.bricks ? 'spent' : ''}"></span>`).join('')}</div><p class="bet-label">How many clues will it take?</p><div class="bet-options">${[1, 2, 3].map(n => `<button class="bet-button" data-action="bet" data-bet="${n}" aria-label="Bet ${n} ${n === 1 ? 'brick' : 'bricks'}"><span class="bet-gems" aria-hidden="true">${'<span class="gem"></span>'.repeat(n)}</span><strong>${n}</strong><small>${n === 1 ? 'brick · 1 clue' : 'bricks · ' + n + ' clues'}</small></button>`).join('')}</div><p class="hint">Commit your full bet. Saved bricks become bonus points.<br>${remainingJokers ? 'A Joker swaps the word. The timer keeps running.' : 'Make every clue count.'}</p>` : `<p class="eyebrow" style="margin-bottom:12px">ATTEMPT ${turn.attempts + 1} OF ${turn.bet}</p><div class="attempt-dots" aria-label="${turn.bet - turn.attempts} attempts remaining">${Array.from({ length: turn.bet }, (_, i) => `<span class="attempt-dot ${i < turn.attempts ? 'used' : i === turn.attempts ? 'current' : ''}">${i + 1}</span>`).join('')}</div><p class="subtitle">Give ${escape(guesser.name)} <strong>one spoken word</strong>.<br>Then let them make one guess.</p><div class="action-pair"><button class="danger-button" data-action="incorrect">${icon('close', 18)} Incorrect</button><button class="success-button" data-action="correct">${icon('check', 19)} Correct!</button></div><p class="hint">${turn.attemptResults.at(-1) === 'timeout' ? 'Last attempt timed out. A fresh timer is running.' : `${game.seconds}s per attempt. Time runs out? That attempt counts as incorrect.`}</p>`}`;
+    const turn=game.current,teller=game.players[turn.teller],guesser=game.players[turn.guesser];
+    const betting=game.phase==='betting',remainingJokers=game.jokers-teller.jokersUsed;
+    return `<div class="word-topline"><span class="turn-chip">${escape(teller.name)} · ${t('Telling turn {n}/{total}',{n:teller.told+1,total:game.turns})}${betting?'':` · ${t(turn.bet===1?'{n} brick bet':'{n} bricks bet',{n:turn.bet})}`}</span><div class="clock" id="clock" role="timer" aria-label="${t(betting?'Betting time remaining':'Guessing time remaining')}">${icon('clock',18)}<span id="seconds">${Math.max(0,Math.ceil((turn.deadline-Date.now())/1000))}s</span></div></div>
+    <div class="word-area"><div class="word-face"><p class="word-label">${t(hiddenWord?'YOUR WORD IS HIDDEN':'YOUR WORD TO TELL')} – ${categoryName(game.category).toLocaleUpperCase(settings.language)}</p><h1 class="secret-word ${hiddenWord?'word-hidden':''}" lang="${hiddenWord?settings.language:game.language}">${hiddenWord?t('Ready when you are.'):escape(turn.word)}</h1></div><div class="word-controls"><button class="utility-button hide-word-button" data-action="hide-word" aria-pressed="${hiddenWord}">${icon(hiddenWord?'eye':'eyeOff',16)} ${t(hiddenWord?'Show word':'Hide word')}</button>${betting&&game.jokers>0?`<button class="utility-button joker-button" data-action="joker" ${remainingJokers===0?'disabled':''}>${icon('spark',18)} ${remainingJokers?t(remainingJokers===1?'Use Joker · {n} left':'Use Jokers · {n} left',{n:remainingJokers}):t('No Jokers left')}</button>`:''}</div></div>
+    ${betting?`<div class="bricks-display"><span class="gem" aria-hidden="true"></span><strong>${teller.bricks}</strong> ${t(isSingular(teller.bricks)?'brick left':'bricks left')}</div><div class="brick-bank" aria-hidden="true">${Array.from({length:game.startingBricks},(_,i)=>`<span class="gem ${i>=teller.bricks?'spent':''}"></span>`).join('')}</div><p class="bet-label">${t('How many clues will it take?')}</p><div class="bet-options">${[1,2,3].map(n=>`<button class="bet-button" data-action="bet" data-bet="${n}" aria-label="${t(isSingular(n)?'Bet {n} brick':'Bet {n} bricks',{n})}"><span class="bet-gems" aria-hidden="true">${'<span class="gem"></span>'.repeat(n)}</span><strong>${n}</strong><small>${t(isSingular(n)?'brick · 1 clue':'bricks · {n} clues',{n})}</small></button>`).join('')}</div><p class="hint">${t('Commit your full bet. Saved bricks become bonus points.')}<br>${t(remainingJokers?'A Joker swaps the word. The timer keeps running.':'Make every clue count.')}</p>`:`<p class="eyebrow" style="margin-bottom:12px">${t('ATTEMPT {n} OF {total}',{n:turn.attempts+1,total:turn.bet})}</p><div class="attempt-dots" aria-label="${t(turn.bet-turn.attempts===1?'{n} attempt remaining':'{n} attempts remaining',{n:turn.bet-turn.attempts})}">${Array.from({length:turn.bet},(_,i)=>`<span class="attempt-dot ${i<turn.attempts?'used':i===turn.attempts?'current':''}">${i+1}</span>`).join('')}</div><p class="subtitle">${t('Give {name} <strong>one spoken word</strong>.<br>Then let them make one guess.',{name:escape(guesser.name)})}</p><div class="action-pair"><button class="danger-button" data-action="incorrect">${icon('close',18)} ${t('Incorrect')}</button><button class="success-button" data-action="correct">${icon('check',19)} ${t('Correct!')}</button></div><p class="hint">${turn.attemptResults.at(-1)==='timeout'?t('Last attempt timed out. A fresh timer is running.'):t('{n}s per attempt. Time runs out? That attempt counts as incorrect.',{n:game.seconds})}</p>`}`;
   }
   function recap() {
-    const turn = game.history.at(-1), teller = game.players[turn.teller], guesser = game.players[turn.guesser];
-    const heading = turn.timeout ? 'Time’s up.' : turn.success ? 'That’s the word!' : 'A tricky one.';
-    const message = turn.timeout === 'betting' ? 'Turn lost. Three bricks spent. No success points.' : turn.timeout === 'guessing' ? 'Last attempt timed out. No success points.' : turn.success ? 'One good guess. Two happy players.' : 'No success points this time. On to the next word.';
-    return `<div class="recap-symbol ${turn.success ? '' : 'missed'}">${icon(turn.timeout ? 'clock' : turn.success ? 'check' : 'close', 34)}</div><h1>${heading}</h1><p class="subtitle">${message}</p><h2 class="recap-word">${escape(turn.word)}</h2><div class="recap-players">${[[teller, 'Teller'], [guesser, 'Guesser']].map(([p, role]) => `<div class="recap-person">${avatar(p)}<strong>${escape(p.name)}</strong><span style="color:var(--muted)">${role}</span><span class="points-gain ${turn.success ? '' : 'zero'}">${turn.success ? '+1 point' : '0 points'}</span></div>`).join('')}</div><div class="receipt"><span><span class="gem" aria-hidden="true"></span>${turn.bet} spent · ${turn.bricksLeft} left</span><span>${turn.timeout === 'betting' ? 'Betting timeout' : `${turn.attempts} ${turn.attempts === 1 ? 'attempt' : 'attempts'}`}</span>${turn.discarded.length ? `<span>${turn.discarded.length} ${turn.discarded.length === 1 ? 'Joker' : 'Jokers'} used</span>` : ''}</div>${teller.told === game.turns ? `<div class="bonus-banner"><strong>${escape(teller.name)} finished telling!</strong><br>+${turn.brickBonus} unused-brick ${turn.brickBonus === 1 ? 'point' : 'points'}${turn.jokerBonus ? ` · +${turn.jokerBonus} unused-Joker ${turn.jokerBonus === 1 ? 'point' : 'points'}` : ''}</div>` : ''}<button class="primary-button" data-action="next">${game.index === game.schedule.length - 1 ? 'See the final scores' : 'Ready for the next turn'}</button>`;
+    const turn=game.history.at(-1),teller=game.players[turn.teller],guesser=game.players[turn.guesser];
+    const heading=t(turn.timeout?'Time’s up.':turn.success?'That’s the word!':'A tricky one.');
+    const message=t(turn.timeout==='betting'?'Turn lost. Three bricks spent. No success points.':turn.timeout==='guessing'?'Last attempt timed out. No success points.':turn.success?'One good guess. Two happy players.':'No success points this time. On to the next word.');
+    return `<div class="recap-symbol ${turn.success?'':'missed'}">${icon(turn.timeout?'clock':turn.success?'check':'close',34)}</div><h1>${heading}</h1><p class="subtitle">${message}</p><h2 class="recap-word" lang="${game.language}">${escape(turn.word)}</h2><div class="recap-players">${[[teller,'Teller'],[guesser,'Guesser']].map(([p,role])=>`<div class="recap-person">${avatar(p)}<strong>${escape(p.name)}</strong><span style="color:var(--muted)">${t(role)}</span><span class="points-gain ${turn.success?'':'zero'}">${t(turn.success?'+1 point':'0 points')}</span></div>`).join('')}</div><div class="receipt"><span><span class="gem" aria-hidden="true"></span>${t('{spent} spent · {left} left',{spent:turn.bet,left:turn.bricksLeft})}</span><span>${turn.timeout==='betting'?t('Betting timeout'):t(isSingular(turn.attempts)?'{n} attempt':'{n} attempts',{n:turn.attempts})}</span>${turn.discarded.length?`<span>${t(turn.discarded.length===1?'{n} Joker used':'{n} Jokers used',{n:turn.discarded.length})}</span>`:''}</div>${teller.told===game.turns?`<div class="bonus-banner"><strong>${t('{name} finished telling!',{name:escape(teller.name)})}</strong><br>${t(isSingular(turn.brickBonus)?'+{n} unused-brick point':'+{n} unused-brick points',{n:turn.brickBonus})}${turn.jokerBonus?` · ${t(isSingular(turn.jokerBonus)?'+{n} unused-Joker point':'+{n} unused-Joker points',{n:turn.jokerBonus})}`:''}</div>`:''}<button class="primary-button" data-action="next">${t(game.index===game.schedule.length-1?'See the final scores':'Ready for the next turn')}</button>`;
   }
   function privacyScreen() {
-    const teller = game.players[game.current.teller];
-    return `<div class="selection-icon">${icon('lock', 27)}</div><p class="eyebrow">KEEP THE WORD SECRET</p><h1>Welcome back, ${escape(teller.name)}.</h1><p class="subtitle">Make sure only you can see the screen.</p><button class="primary-button" style="margin-top:26px" data-action="resume-word">Show my turn</button><p class="hint">${game.phase === 'betting' ? 'Your betting timer is still running.' : 'Your guessing timer is still running.'}</p>`;
+    const teller=game.players[game.current.teller];
+    return `<div class="selection-icon">${icon('lock',27)}</div><p class="eyebrow">${t('KEEP THE WORD SECRET')}</p><h1>${t('Welcome back, {name}.',{name:escape(teller.name)})}</h1><p class="subtitle">${t('Make sure only you can see the screen.')}</p><button class="primary-button" style="margin-top:26px" data-action="resume-word">${t('Show my turn')}</button><p class="hint">${t(game.phase==='betting'?'Your betting timer is still running.':'Your guessing timer is still running.')}</p>`;
   }
   function historyList() {
-    return game.history.map((turn, i) => `<div class="history-item"><div><strong>${escape(turn.word)}</strong><small>${i + 1}. ${escape(game.players[turn.teller].name)} to ${escape(game.players[turn.guesser].name)} · ${turn.bet} ${turn.bet === 1 ? 'brick' : 'bricks'}${turn.attemptResults.includes('timeout') ? ` · ${turn.attemptResults.filter(r => r === 'timeout').length} timed-out attempts` : ''}${turn.discarded.length ? ` · Replaced: ${turn.discarded.map(escape).join(', ')}` : ''}</small></div><span class="history-status ${turn.success ? '' : 'missed'}">${turn.timeout ? 'Timed out' : turn.success ? 'Guessed' : 'Missed'}</span></div>`).join('');
+    return game.history.map((turn,i)=>`<div class="history-item"><div><strong lang="${game.language}">${escape(turn.word)}</strong><small>${i+1}. ${t('{name} to {partner}',{name:escape(game.players[turn.teller].name),partner:escape(game.players[turn.guesser].name)})} · ${turn.bet} ${t(turn.bet===1?'brick':'bricks')}${turn.attemptResults.includes('timeout')?` · ${t('{n} timed-out attempts',{n:turn.attemptResults.filter(r=>r==='timeout').length})}`:''}${turn.discarded.length?` · ${t('Replaced: {words}',{words:turn.discarded.map(escape).join(', ')})}`:''}</small></div><span class="history-status ${turn.success?'':'missed'}">${t(turn.timeout?'Timed out':turn.success?'Guessed':'Missed')}</span></div>`).join('');
   }
   function finished() {
-    const sorted = [...game.players].sort((a, b) => E.score(b) - E.score(a));
-    const winners = sorted.filter(p => E.score(p) === E.score(sorted[0]));
-    const pages = Math.ceil(sorted.length / 4);
-    leaderboardPage = Math.max(0, Math.min(leaderboardPage, pages - 1));
-    const name = winners.length === 1 ? `${escape(winners[0].name)} wins!` : `${winners.length} champions!`;
-    return `<section class="finish-screen ${lastScreen !== 'finished' ? 'screen-enter' : ''}"><div class="finish-header"><div class="trophy">${icon('trophy', 51)}</div><p class="eyebrow">${winners.length > 1 ? 'SHARED VICTORY' : 'THE PYRAMID CHAMPION'}</p><h1>${name}</h1><p class="subtitle">${E.score(sorted[0])} points · ${game.history.length} words played</p></div><div class="finish-scores"><div class="panel leaderboard"><div class="leaderboard-head"><span>#</span><span style="text-align:left">Player</span><span title="Successful guesses">Guess</span><span title="Successful tells">Tell</span><span>Bricks</span><span>Joker</span><span>Total</span></div>${sorted.slice(leaderboardPage * 4, leaderboardPage * 4 + 4).map(p => { return `<div class="leaderboard-row ${winners.includes(p) ? 'winner' : ''}"><span class="rank">${sorted.findIndex(q => E.score(q) === E.score(p)) + 1}</span><span class="leaderboard-name" title="${escape(p.name)}${winners.includes(p) ? ' — Champion' : ''}">${avatar(p)}<span>${escape(p.name)}</span>${winners.includes(p) ? '<span class="winner-mark" aria-label="Champion">✦</span>' : ''}</span><span>${p.guessing}</span><span>${p.telling}</span><span>${p.brickBonus}</span><span>${p.jokerBonus}</span><span class="total-score">${E.score(p)}</span></div>`; }).join('')}</div>${pages > 1 ? `<nav class="score-pages" aria-label="Leaderboard pages"><button class="small-button" data-action="score-page" data-page="${leaderboardPage - 1}" aria-label="Previous players" ${leaderboardPage === 0 ? 'disabled' : ''}>←</button><span>Players ${leaderboardPage * 4 + 1}–${Math.min((leaderboardPage + 1) * 4, sorted.length)} of ${sorted.length}</span><button class="small-button" data-action="score-page" data-page="${leaderboardPage + 1}" aria-label="Next players" ${leaderboardPage === pages - 1 ? 'disabled' : ''}>→</button></nav>` : ''}<p class="leaderboard-legend">Guess = correct guesses · Tell = successful tells<br>Bricks & Joker = unused-resource bonuses</p></div><div class="finish-actions"><button class="primary-button" data-action="play-again">${icon('shuffle', 18)} Play again</button><button class="secondary-button" data-action="setup">Change setup</button></div><button class="text-button history-button" data-action="history">All ${game.history.length} words & results ${icon('arrow', 15)}</button></section>`;
+    const sorted=[...game.players].sort((a,b)=>E.score(b)-E.score(a)),winners=sorted.filter(p=>E.score(p)===E.score(sorted[0])),pages=Math.ceil(sorted.length/4);
+    leaderboardPage=Math.max(0,Math.min(leaderboardPage,pages-1));
+    const name=winners.length===1?t('{name} wins!',{name:escape(winners[0].name)}):t('{n} champions!',{n:winners.length});
+    return `<section class="finish-screen ${lastScreen!=='finished'?'screen-enter':''}"><div class="finish-header"><div class="trophy">${icon('trophy',51)}</div><p class="eyebrow">${t(winners.length>1?'SHARED VICTORY':'THE PYRAMID CHAMPION')}</p><h1>${name}</h1><p class="subtitle">${t('{points} points · {words} words played',{points:E.score(sorted[0]),words:game.history.length})}</p></div><div class="finish-scores"><div class="panel leaderboard"><div class="leaderboard-head"><span>#</span><span style="text-align:left">${t('Player')}</span><span title="${t('Successful guesses')}">${t('Guess')}</span><span title="${t('Successful tells')}">${t('Tell')}</span><span>${t('Bricks')}</span><span>${t('Joker')}</span><span>${t('Total')}</span></div>${sorted.slice(leaderboardPage*4,leaderboardPage*4+4).map(p=>`<div class="leaderboard-row ${winners.includes(p)?'winner':''}"><span class="rank">${sorted.findIndex(q=>E.score(q)===E.score(p))+1}</span><span class="leaderboard-name" title="${escape(p.name)}${winners.includes(p)?' — '+t('Champion'):''}">${avatar(p)}<span>${escape(p.name)}</span>${winners.includes(p)?`<span class="winner-mark" aria-label="${t('Champion')}">✦</span>`:''}</span><span>${p.guessing}</span><span>${p.telling}</span><span>${p.brickBonus}</span><span>${p.jokerBonus}</span><span class="total-score">${E.score(p)}</span></div>`).join('')}</div>${pages>1?`<nav class="score-pages" aria-label="${t('Leaderboard pages')}"><button class="small-button" data-action="score-page" data-page="${leaderboardPage-1}" aria-label="${t('Previous players')}" ${leaderboardPage===0?'disabled':''}>←</button><span>${t('Players {first}–{last} of {total}',{first:leaderboardPage*4+1,last:Math.min((leaderboardPage+1)*4,sorted.length),total:sorted.length})}</span><button class="small-button" data-action="score-page" data-page="${leaderboardPage+1}" aria-label="${t('Next players')}" ${leaderboardPage===pages-1?'disabled':''}>→</button></nav>`:''}<p class="leaderboard-legend">${t('Guess = correct guesses · Tell = successful tells')}<br>${t('Bricks & Joker = unused-resource bonuses')}</p></div><div class="finish-actions"><button class="primary-button" data-action="play-again">${icon('shuffle',18)} ${t('Play again')}</button><button class="secondary-button" data-action="setup">${t('Change setup')}</button></div><button class="text-button history-button" data-action="history">${t('All {n} words & results',{n:game.history.length})} ${icon('arrow',15)}</button></section>`;
   }
   function stopAnimation() { clearInterval(animationTimer); clearTimeout(animationEnd); animationTimer = null; animationEnd = null; }
   // Allocate only measured spare height; reset before measuring after a resize.
@@ -293,11 +321,12 @@
     else {
       const privateTurn = ['betting', 'attempts'].includes(game.phase);
       const content = privateTurn && privacy ? privacyScreen() : ({ 'shuffle-teller': () => selection(false), handoff, 'shuffle-guesser': () => selection(true), ready, betting: wordScreen, attempts: wordScreen, recap })[game.phase]();
-      app.innerHTML = `${toolbar()}<div class="game-layout ${entering ? 'stage-enter' : ''}"><section class="play-panel ${game.phase.startsWith('shuffle-') ? 'selection-panel' : ''} ${privateTurn && !privacy ? 'word-panel' : ''}" aria-label="Current turn">${content}</section></div>`;
+      app.innerHTML = `${toolbar()}<div class="game-layout ${entering ? 'stage-enter' : ''}"><section class="play-panel ${game.phase.startsWith('shuffle-') ? 'selection-panel' : ''} ${privateTurn && !privacy ? 'word-panel' : ''}" aria-label="${t('Current turn')}">${content}</section></div>`;
       if (game.phase.startsWith('shuffle-')) runSelection(game.phase === 'shuffle-guesser');
     }
     lastScreen = screen;
     if (focus) { app.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: 'instant' }); }
+    updateHeader();
     updateSoundButton();
     fitStage();
   }
@@ -320,8 +349,8 @@
       if (elapsed >= 2450) {
         highlight(selected);
         document.getElementById('selection-arena').classList.add('locked');
-        document.getElementById('selection-label').textContent = guesser ? 'Your guesser!' : 'Your teller!';
-        document.getElementById('selection-caption').textContent = 'The spotlight is yours.';
+        document.getElementById('selection-label').textContent = t(guesser ? 'Your guesser!' : 'Your teller!');
+        document.getElementById('selection-caption').textContent = t('The spotlight is yours.');
         tone(660, .12); tone(880, .16, .08);
         return;
       }
@@ -334,38 +363,66 @@
       stopAnimation();
       game.phase = guesser ? 'ready' : 'handoff';
       save(); render();
-      announce(`${selected.name} is the ${guesser ? 'guesser' : 'teller'}.`);
+      announce(t(guesser ? '{name} is the guesser.' : '{name} is the teller.', {name:selected.name}));
       tone(520, .08);
     }, 3000);
   }
   function startGame() {
-    try { game = E.createGame(settings.names, settings.category, settings.seconds, WORDS[settings.category] || [], Math.random, settings.turns, settings.jokers); }
-    catch (error) { setupError = error.message; const box = document.getElementById('setup-error'); if (box) { box.hidden = false; box.textContent = setupError; } return; }
+    try { game = E.createGame(settings.names, settings.category, settings.seconds, deck()[settings.category] || [], Math.random, settings.turns, settings.jokers); game.language = settings.language; }
+    catch (error) { setupError = t(error.message); const box = document.getElementById('setup-error'); if (box) { box.hidden = false; box.textContent = setupError; } return; }
     setupError = ''; hiddenWord = false; privacy = false; lastTick = null; leaderboardPage = 0; save(); render();
   }
   function clearGame() { stopAnimation(); game = null; setupStep = 0; stepDirection = 1; privacy = false; hiddenWord = false; setupError = ''; try { sessionStorage.removeItem(storageKey); } catch {} save(); render(); }
   function openModal(title, content, actions = '') {
-    document.getElementById('modal-content').innerHTML = `<div class="modal-inner"><div class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close', 18)}</button></div>${content}${actions}</div>`;
+    document.getElementById('modal-content').innerHTML = `<div class="modal-inner"><div class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="${t('Close dialog')}">${icon('close', 18)}</button></div>${content}${actions}</div>`;
     if (!modal.open) modal.showModal();
   }
-  function rules() {
-    openModal('How to play', `<p><strong>Make your partner guess a word with as few clues as possible.</strong> Your chosen game length sets the turns per role. Everyone starts with three bricks per telling turn and the chosen allowance of 0, 1, or 2 Jokers.</p><ol><li>The teller privately sees the word and bets <strong>1, 2, or 3 bricks</strong> within the chosen time limit. The full bet is spent immediately.</li><li>Each brick buys <strong>one spoken clue word and one spoken guess</strong>. Record Correct or Incorrect after each guess. Each attempt gets the chosen time limit. Timeout counts as Incorrect; the next attempt starts with a fresh timer. Timers keep running while the word is hidden or the app is in the background.</li><li>A correct guess gives <strong>one point to each player</strong>. Unsuccessful turns give no success points.</li><li>If the betting timer expires, <strong>three bricks are spent and the turn is lost</strong>. It counts for both players.</li><li>Each player has <strong>0, 1, or 2 Jokers for the entire game</strong>, as chosen in setup, to replace a word before betting. It does not restart the timer.</li><li>After your final telling turn, each unused brick becomes a bonus point added to your guessing score. Each unused Joker adds <strong>one more point</strong>.</li></ol><p>Keep the target word secret. Agree together whether a spoken clue or guess is valid. Geography includes place names. Each drawn word, even a Joker discard, is used only once per game.</p><p>Partners are distributed equally when possible, and otherwise differ by at most one turn.</p>`);
-  }
+  function rules() { openModal(t('How to play'), t('rules.content')); }
   function about() {
-    openModal('About Pyramid', `<p>Pyramid is played aloud around one shared device. Player names, choices, and scores stay in this browser session. A new game resets all scores.</p><p><strong>English word sources</strong><br>The curated lists are drawn from and verified against Princeton WordNet 3.0, an authoritative English lexical database. Categories and age suitability are editorial selections, not dictionary ratings.</p><p><a href="https://wordnet.princeton.edu/" target="_blank" rel="noopener">Princeton WordNet</a> · <a href="data/WORDNET-LICENSE.txt" target="_blank" rel="noopener">WordNet license</a> · <a href="data/SOURCES.md" target="_blank" rel="noopener">Sources & selection notes</a></p><p>Source: Princeton University, “About WordNet,” 2010. WordNet 3.0 Copyright 2006 by Princeton University. WordNet is a registered trademark.</p><p><strong>Install on your phone or tablet</strong><br>Open Pyramid over HTTPS, then use your browser’s Add to Home Screen option. On iPhone and iPad, look in the Share menu. Installed mode removes browser controls. Offline play is available after the app finishes caching its files.</p><p>${storageAvailable ? 'Refreshing restores the active game in this tab. Private words stay covered until the teller returns.' : 'This browser is blocking session storage. Keep this page open; refreshing will reset the game.'}</p>`);
+    openModal(t('About Pyramid'), `${t('about.content')}<p>${t(storageAvailable ? 'Refreshing restores the active game in this tab. Private words stay covered until the teller returns.' : 'This browser is blocking session storage. Keep this page open; refreshing will reset the game.')}</p><p>${t(preferencesAvailable ? 'Saved on this device.' : 'This browser cannot save preferences. They will only last for this session.')}</p>`);
+  }
+  function updateHeader() {
+    document.documentElement.lang = settings.language;
+    document.querySelector('link[rel="manifest"]').setAttribute('href', settings.language === 'fr' ? 'manifest.fr.webmanifest' : 'manifest.webmanifest');
+    document.title = t('Pyramid · The word game');
+    document.querySelector('meta[name="description"]').content = t('app.description');
+    document.querySelector('.brand').setAttribute('aria-label', t('Pyramid home'));
+    const rulesButton = document.getElementById('rules-button');
+    rulesButton.innerHTML = `${icon('book',18)}<span class="rules-label">${t('How to play')}</span>`;
+    rulesButton.setAttribute('aria-label', t('How to play'));
+    rulesButton.title = t('How to play');
+    document.getElementById('about-button').setAttribute('aria-label', t('About Pyramid'));
+    document.getElementById('about-button').title = t('About & word sources');
+    document.getElementById('install-button').textContent = t('Install app');
+    const footer = document.querySelector('.app-footer');
+    footer.firstElementChild.textContent = t('FEWER CLUES. MORE POINTS.');
+    footer.lastElementChild.textContent = t('ONE WORD AT A TIME');
+    const button = document.getElementById('language-button');
+    button.innerHTML = `<span aria-hidden="true">${settings.language === 'fr' ? '🇫🇷' : '🇬🇧'}</span>`;
+    button.setAttribute('aria-label', `${t('Choose language')} · ${languageName(settings.language)}`);
+    button.title = t('Choose language');
+  }
+  function languages() {
+    openModal(t('Language'), `<div class="language-choices">${['en','fr'].map(language => `<button class="language-choice" data-action="language" data-language="${language}" aria-pressed="${settings.language === language}" lang="${language}"><span class="language-flag" aria-hidden="true">${language === 'fr' ? '🇫🇷' : '🇬🇧'}</span><strong>${languageName(language)}</strong>${settings.language === language ? icon('check',20) : ''}</button>`).join('')}</div>${game && game.phase !== 'finished' ? `<p class="hint">${t('The word language changes with your next game. This game keeps its original words.')}</p>` : ''}`);
   }
   function handleAction(action, button) {
     activateAudio();
+    if (action === 'language' && ['en','fr'].includes(button.dataset.language)) {
+      settings.language = button.dataset.language; setupError = '';
+      if (game) E.expire(game);
+      save(); modal.close(); render(false); tick();
+      document.getElementById('language-button').focus({ preventScroll: true }); return;
+    }
     if (action === 'close-modal') { modal.close(); return; }
-    if (action === 'history' && game?.phase === 'finished') { openModal('Words & results', historyList()); return; }
+    if (action === 'history' && game?.phase === 'finished') { openModal(t('Words & results'), historyList()); return; }
     if (action === 'score-page' && game?.phase === 'finished') { leaderboardPage = Number(button.dataset.page); render(); return; }
-    if (action === 'scores' && game) { openModal('At the table', `${scoreList()}<p>Points include correct guesses, successful tells, and bonuses awarded after a player’s final telling turn.</p>`); return; }
-    if (action === 'end-game') { openModal('End this game?', '<p>Your current words, scores, and progress will be cleared.</p>', '<div class="modal-actions"><button class="secondary-button" data-action="close-modal">Keep playing</button><button class="danger-button" data-action="confirm-end">End game</button></div>'); return; }
+    if (action === 'scores' && game) { openModal(t('At the table'), `${scoreList()}<p>${t('Points include correct guesses, successful tells, and bonuses awarded after a player’s final telling turn.')}</p>`); return; }
+    if (action === 'end-game') { openModal(t('End this game?'), `<p>${t('Your current words, scores, and progress will be cleared.')}</p>`, `<div class="modal-actions"><button class="secondary-button" data-action="close-modal">${t('Keep playing')}</button><button class="danger-button" data-action="confirm-end">${t('End game')}</button></div>`); return; }
     if (action === 'confirm-end') { modal.close(); clearGame(); return; }
     if (action === 'setup') { clearGame(); return; }
     if (action === 'play-again' && game?.phase === 'finished') { game = null; startGame(); return; }
     if (!game) {
-      if (action === 'add-player' && settings.names.length < 10) settings.names.push(defaults[settings.names.length] || `Player ${settings.names.length + 1}`);
+      if (action === 'add-player' && settings.names.length < 10) settings.names.push('');
       else if (action === 'remove-player' && settings.names.length > 2) settings.names.pop();
       else if (action === 'category') settings.category = button.dataset.category;
       else if (action === 'jokers' && [0, 1, 2].includes(Number(button.dataset.jokers))) settings.jokers = Number(button.dataset.jokers);
@@ -375,7 +432,7 @@
       else if (action === 'setup-step' && Number(button.dataset.step) <= setupStep) { stepDirection = -1; setupStep = Number(button.dataset.step); }
       else if (action === 'setup-next' && setupStep < 4) {
         if (setupStep === 0 && (!settings.names.every(n => n.trim()) || new Set(settings.names.map(n => n.trim().toLowerCase())).size !== settings.names.length)) {
-          setupError = 'Give everyone a name, and use a different name for each player.'; render(false); return;
+          setupError = t('Give everyone a name, and use a different name for each player.'); render(false); return;
         }
         setupStep++; stepDirection = 1; tone(440 + setupStep * 110, .07);
       }
@@ -387,7 +444,7 @@
     else if (game.phase === 'ready' && action === 'reveal') { hiddenWord = false; privacy = false; lastTick = null; E.beginBetting(game); }
     else if (['betting', 'attempts'].includes(game.phase) && action === 'hide-word') hiddenWord = !hiddenWord;
     else if (game.phase === 'betting' && action === 'bet') { E.bet(game, Number(button.dataset.bet)); if (modal.open && game.phase !== 'betting') modal.close(); }
-    else if (game.phase === 'betting' && action === 'joker') { if (E.joker(game)) { tone(700, .1); announce('Joker used. A new word is ready.'); } }
+    else if (game.phase === 'betting' && action === 'joker') { if (E.joker(game)) { tone(700, .1); announce(t('Joker used. A new word is ready.')); } }
     else if (game.phase === 'attempts' && ['correct', 'incorrect'].includes(action)) { E.attempt(game, action === 'correct'); if (game.phase === 'recap') chime(game.history.at(-1).success); }
     else if (game.phase === 'recap' && action === 'next') { E.next(game); hiddenWord = false; privacy = false; if (game.phase === 'finished') chime(true); }
     else if (action === 'resume-word' && ['betting', 'attempts'].includes(game.phase)) { E.expire(game); privacy = false; }
@@ -408,6 +465,7 @@
   });
   document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); if (game && game.phase !== 'finished') handleAction('end-game'); else clearGame(); });
   document.getElementById('rules-button').addEventListener('click', rules);
+  document.getElementById('language-button').addEventListener('click', languages);
   document.getElementById('about-button').addEventListener('click', about);
   document.getElementById('sound-button').addEventListener('click', () => { activateAudio(); settings.muted = !settings.muted; updateSoundButton(); save(); if (!settings.muted) tone(600, .07); });
   modal.addEventListener('click', event => { if (event.target === modal) { const rect = modal.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) modal.close(); } });
@@ -415,12 +473,12 @@
   function tick() {
     if (!game || !['betting', 'attempts'].includes(game.phase)) return;
     const betting = game.phase === 'betting';
-    if (E.expire(game)) { if (modal.open) modal.close(); save(); render(); chime(false); announce(betting ? 'Time is up. Three bricks spent. Turn lost.' : game.phase === 'recap' ? 'Time is up. No attempts left.' : `Time is up. Attempt ${game.current.attempts + 1} starts now.`); lastTick = null; return; }
+    if (E.expire(game)) { if (modal.open) modal.close(); save(); render(); chime(false); announce(t(betting ? 'Time is up. Three bricks spent. Turn lost.' : game.phase === 'recap' ? 'Time is up. No attempts left.' : 'Time is up. Attempt {n} starts now.',{n:game.current.attempts + 1})); lastTick = null; return; }
     const remaining = Math.max(0, Math.ceil((game.current.deadline - Date.now()) / 1000));
     const seconds = document.getElementById('seconds'), clock = document.getElementById('clock');
     if (seconds) seconds.textContent = `${remaining}s`;
-    if (clock) { clock.classList.toggle('urgent', remaining <= 10); clock.setAttribute('aria-label', `${remaining} seconds left to ${betting ? 'bet' : 'guess'}`); }
-    if (remaining <= 10 && lastTick !== remaining) { tone(remaining % 2 ? 900 : 650, .035, 0, .035); if ([10, 5].includes(remaining)) announce(`${remaining} seconds left to ${betting ? 'bet' : 'guess'}.`); }
+    if (clock) { clock.classList.toggle('urgent', remaining <= 10); clock.setAttribute('aria-label', t(betting ? (isSingular(remaining) ? '{n} second left to bet' : '{n} seconds left to bet') : (isSingular(remaining) ? '{n} second left to guess' : '{n} seconds left to guess'),{n:remaining})); }
+    if (remaining <= 10 && lastTick !== remaining) { tone(remaining % 2 ? 900 : 650, .035, 0, .035); if ([10, 5].includes(remaining)) announce(t(betting ? (isSingular(remaining) ? '{n} second left to bet' : '{n} seconds left to bet') : (isSingular(remaining) ? '{n} second left to guess' : '{n} seconds left to guess'),{n:remaining})); }
     lastTick = remaining;
   }
   setInterval(tick, 100);
@@ -445,5 +503,5 @@
     } catch { /* Unsupported browsers use the normal interface. */ }
   }
   if ('serviceWorker' in navigator && ['http:', 'https:'].includes(location.protocol)) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(registration => registration.update()).catch(() => {});
-  render(false); tick();
+  save(); render(false); tick();
 })();

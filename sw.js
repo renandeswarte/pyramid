@@ -1,12 +1,16 @@
 /* Local files only. Gameplay and target words are never sent to a server. */
-const CACHE = 'pyramid-static-v28';
+const CACHE = 'pyramid-static-v29';
 const FILES = [
   './', './index.html', './styles.css', './engine.js', './app.js', './data/words.js',
-  './manifest.webmanifest', './assets/icon.svg', './assets/icon-180.png',
+  './manifest.webmanifest', './manifest.fr.webmanifest', './assets/icon.svg', './assets/icon-180.png',
   './assets/icon-192.png', './assets/icon-512.png',
   './data/global.json', './data/food.json', './data/animals.json', './data/geography.json',
   './data/body.json', './data/kids.json', './data/teens.json',
-  './data/WORDNET-LICENSE.txt', './data/SOURCES.md'
+  './data/WORDNET-LICENSE.txt', './data/SOURCES.md',
+  './i18n.js', './data/fr/words.js',
+  './data/fr/global.json', './data/fr/food.json', './data/fr/animals.json', './data/fr/geography.json',
+  './data/fr/body.json', './data/fr/kids.json', './data/fr/teens.json',
+  './data/fr/SOURCES.md', './data/fr/MORPHALOU-LICENSE.txt', './data/fr/UNICODE-LICENSE.txt'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES.map(file => new Request(file, { cache: 'reload' })))).then(() => self.skipWaiting()));

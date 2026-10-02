@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Pyramid",
+  "short_name": "Pyramid",
+  "description": "Un jeu de mots à partager. Moins d’indices, plus de points.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1123",
+  "theme_color": "#0b1123",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

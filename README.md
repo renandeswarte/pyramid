@@ -1,6 +1,6 @@
 # Pyramid
 
-A responsive, shared-device oral word game. Plain HTML, CSS, JavaScript, and local English word files. No database, account, framework, external fonts, or runtime dependencies.
+A responsive, shared-device oral word game. Plain HTML, CSS, JavaScript, and local English and French word files. No database, account, framework, external fonts, or runtime dependencies.
 
 ## Open locally
 
@@ -14,7 +14,7 @@ Then open http://127.0.0.1:4173. Installation and offline caching need localhost
 
 ## Rules
 
-- 2–10 players; defaults are Renan, Valerie, Thomas, and Chloe.
+- 2–10 players; first-time visitors start with four empty name fields. Names and setup choices are remembered on this device.
 - Setup moves through five screens: Players → Words → Time → Jokers → Length. Short games and the six-turn Classic game are available. Each player gets three starting blue bricks per telling turn and 0, 1, or 2 Jokers per game (one by default).
 - For two players choose 1, 3 or 6 turns per role; for three choose 2, 4 or 6; for four choose 3 or 6. Larger groups can choose six turns or a full round robin of `players − 1` turns. Six-turn Classic starts with 18 bricks; the shortest two-, three- and four-player games start with 3, 6 and 9 respectively.
 - One turn is one word. Bet 1–3 bricks before the 30- or 60-second betting deadline (30 seconds by default). The full bet is committed with no refund for an early success.
@@ -39,6 +39,16 @@ The stage follows CSS viewport height and applies installed-app safe areas once.
 
 Touch screens and installed web apps disable text selection and long-press callouts, while player-name fields retain native editing and copy/paste. Hover effects only apply to a fine mouse pointer and are suppressed after touch or pen input, preventing a held highlight from carrying into the next screen. Keyboard focus indicators and pressed/selected states remain available.
 
+## Languages and saved preferences
+
+A flag beside the sound control opens the language picker (English / Français). First visits follow the browser’s preferred language: French for `fr-*`, English otherwise. An explicit selection is saved and overrides browser detection. Interface messages, rules, dialogs, accessibility labels, errors, and dynamic score text use `i18n.js`. The app name stays Pyramid.
+
+Preferences use `localStorage` (`pyramid-preferences-v2`): names, player count, category, time, Jokers, game length, sound, and language. New games retain them but reset scores. Custom names from an existing session migrate; the old shipped four-name defaults are removed. If persistent storage is blocked, session storage is used when available. No account, cookies, or server storage is needed. Clearing site data removes preferences; private browsing and different browser/installed-app storage containers can keep separate or temporary copies. No cross-device synchronization is implied.
+
+The game stores its word language when it starts. Switching the interface mid-game preserves the word, unused deck, history, scores, and deadlines. The selected word language takes effect on the next game. Older saved games are English. Both language bundles are cached for offline switching after a complete online load.
+
+French decks are independently curated: 2,795 general words, 334 food, 323 animals, 311 geography, 264 body, 528 kids, and 505 teens. Ordinary words are verified against ATILF Morphalou 3.1; French place names come from Unicode CLDR and reviewed Wikidata labels. See `data/fr/SOURCES.md` and included licenses. Age and theme assignments are editorial.
+
 ## Privacy and persistence
 
 Session storage protects progress against refresh in the same tab. It does not synchronize devices. Closing the tab can discard progress depending on browser behavior. On refresh or when returning after switching apps, an active word is covered. Betting and guessing deadlines continue to run while hidden; using a Joker, opening help, and switching tabs never pause them. Expired guessing attempts are processed on return. Existing saved games retain their one-Joker allowance; an active guessing attempt gets its first timer when upgraded.
@@ -47,25 +57,26 @@ The app sends no gameplay data anywhere. A hosting provider still receives ordin
 
 ## Files
 
-- `index.html`, `styles.css`, `app.js`: screens, presentation, timer, audio, and interactions.
+- `index.html`, `styles.css`, `app.js`, `i18n.js`: screens, translations, presentation, timer, audio, and interactions.
 - `engine.js`: game rules and balanced scheduling, independent of the interface.
-- `data/*.json`: seven editable English decks; `data/words.js` is their browser bundle.
+- `data/*.json` and `data/fr/*.json`: seven editable decks per language; each directory’s `words.js` is its browser bundle.
 - `data/SOURCES.md`, `data/WORDNET-LICENSE.txt`, `data/wordnet-evidence.json`: provenance and attribution.
 - `assets/`: favicon and app icons.
-- `manifest.webmanifest`, `sw.js`: install metadata and offline caching.
+- `manifest.webmanifest`, `manifest.fr.webmanifest`, `sw.js`: localized install metadata and offline caching.
 - `tools/`: reproducible word preparation, icon generation, and rule verification.
 
 ## Verify the rules
 
 ```sh
 node tools/verify-game.cjs
+node tools/verify-language-data.cjs
 ```
 
-Browser verification also covers complete games, betting expiry, refresh privacy, responsive layouts, and offline reload. `tools/verify-ios-viewport.js` is a Playwright CLI `run-code` scenario for WebKit and Chromium, including reduced iOS height reports, safe areas, keyboard entry, and restored app windows. These simulated cases do not replace physical iPhone testing. When updating cached assets for a future release, change the cache version in `sw.js`.
+Browser verification also covers complete games, betting expiry, refresh privacy, responsive layouts, and offline reload. `tools/verify-localization.js` checks saved preferences, first-visit French detection, language switching during play, French Jokers, timer expiry, a complete French game, and fallback when persistent storage is blocked. `tools/verify-ios-viewport.js` is a Playwright CLI `run-code` scenario for WebKit and Chromium, including reduced iOS height reports, safe areas, keyboard entry, and restored app windows. These simulated cases do not replace physical iPhone testing. When updating cached assets for a future release, change the cache version in `sw.js`.
 
 ## Edit word files
 
-Edit a category JSON file, then run `python3 tools/bundle_words.py` to refresh the browser bundle. Global combines ordinary words from all categories and its own general vocabulary, including actions and descriptive words. Capitalized proper place names are excluded from Global and remain in Geography. Preserve capitalization for proper place names when editing Geography. Added entries should be checked against an authoritative English dictionary and their source recorded. The app does not contact a dictionary service.
+Edit a category JSON file, then run `python3 tools/bundle_words.py` to refresh the browser bundle. Global combines ordinary words from all categories and its own general vocabulary, including actions and descriptive words. Capitalized proper place names are excluded from Global and remain in Geography. Preserve capitalization for proper place names when editing Geography. Added entries should be checked against the appropriate language’s authoritative lexical source and their source recorded. The app does not contact a dictionary service.
 
 An optional read-only WebMCP scoreboard tool is feature-detected for supporting browsers. It reveals no target words or future turns. Registration, a valid read, and invalid-input rejection were verified in the native Codex preview; ordinary gameplay does not depend on this proposed API.
 
