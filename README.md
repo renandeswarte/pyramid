@@ -35,7 +35,7 @@ Two-player games skip the guesser animation and go straight to the partner confi
 
 The interface uses an immersive dark game stage, blue gem resources, a step-by-step setup, and three-second player reveals with orbiting spotlights and animated player cards. Screen changes, word swaps, scores and winners have restrained transitions. Phone setup controls stay available at the bottom of the screen. Reduced-motion preferences disable CSS motion and slow the changing names; sound can be muted independently.
 
-The stage follows the usable browser height and installed-app safe areas. Short landscape windows arrange the content in two columns. Setup and normal gameplay fit without scrolling the page; if the on-screen keyboard reduces name-entry space, only the name panel scrolls. Longer targets scale to stay readable on one line. Groups larger than four use leaderboard pages, with champions marked beside their names. Word history and help open in a bounded dialog with its close button kept visible.
+The stage follows the usable browser height and installed-app safe areas. Setup cards, player selections, handoffs, word screens, recaps, and score rows use spare vertical space when available. Spacing is recalculated from the content after resizing and stays compact during keyboard entry. Short landscape windows arrange the content in two columns. Setup and normal gameplay fit without scrolling the page; if the on-screen keyboard reduces name-entry space, only the name panel scrolls. Longer targets scale to stay readable on one line. Groups larger than four use leaderboard pages, with champions marked beside their names. Word history and help open in a bounded dialog with its close button kept visible.
 
 ## Privacy and persistence
 

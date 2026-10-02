@@ -166,7 +166,59 @@
     return `<section class="finish-screen ${lastScreen !== 'finished' ? 'screen-enter' : ''}"><div class="finish-header"><div class="trophy">${icon('trophy', 51)}</div><p class="eyebrow">${winners.length > 1 ? 'SHARED VICTORY' : 'THE PYRAMID CHAMPION'}</p><h1>${name}</h1><p class="subtitle">${E.score(sorted[0])} points · ${game.history.length} words played</p></div><div class="finish-scores"><div class="panel leaderboard"><div class="leaderboard-head"><span>#</span><span style="text-align:left">Player</span><span title="Successful guesses">Guess</span><span title="Successful tells">Tell</span><span>Bricks</span><span>Joker</span><span>Total</span></div>${sorted.slice(leaderboardPage * 4, leaderboardPage * 4 + 4).map(p => { return `<div class="leaderboard-row ${winners.includes(p) ? 'winner' : ''}"><span class="rank">${sorted.findIndex(q => E.score(q) === E.score(p)) + 1}</span><span class="leaderboard-name" title="${escape(p.name)}${winners.includes(p) ? ' — Champion' : ''}">${avatar(p)}<span>${escape(p.name)}</span>${winners.includes(p) ? '<span class="winner-mark" aria-label="Champion">✦</span>' : ''}</span><span>${p.guessing}</span><span>${p.telling}</span><span>${p.brickBonus}</span><span>${p.jokerBonus}</span><span class="total-score">${E.score(p)}</span></div>`; }).join('')}</div>${pages > 1 ? `<nav class="score-pages" aria-label="Leaderboard pages"><button class="small-button" data-action="score-page" data-page="${leaderboardPage - 1}" aria-label="Previous players" ${leaderboardPage === 0 ? 'disabled' : ''}>←</button><span>Players ${leaderboardPage * 4 + 1}–${Math.min((leaderboardPage + 1) * 4, sorted.length)} of ${sorted.length}</span><button class="small-button" data-action="score-page" data-page="${leaderboardPage + 1}" aria-label="Next players" ${leaderboardPage === pages - 1 ? 'disabled' : ''}>→</button></nav>` : ''}<p class="leaderboard-legend">Guess = correct guesses · Tell = successful tells<br>Bricks & Joker = unused-resource bonuses</p></div><div class="finish-actions"><button class="primary-button" data-action="play-again">${icon('shuffle', 18)} Play again</button><button class="secondary-button" data-action="setup">Change setup</button></div><button class="text-button history-button" data-action="history">All ${game.history.length} words & results ${icon('arrow', 15)}</button></section>`;
   }
   function stopAnimation() { clearInterval(animationTimer); clearTimeout(animationEnd); animationTimer = null; animationEnd = null; }
+  // Allocate only measured spare height; reset before measuring after a resize.
+  let spacingEdits = [];
+  function resetSpacing() {
+    for (const [element, property, value] of spacingEdits) {
+      if (value) element.style.setProperty(property, value);
+      else element.style.removeProperty(property);
+    }
+    spacingEdits = [];
+  }
+  function spaceStyle(element, property, value) {
+    spacingEdits.push([element, property, element.style.getPropertyValue(property)]);
+    element.style.setProperty(property, `${value}px`);
+  }
+  function spareHeight(pane) {
+    const style = getComputedStyle(pane);
+    const children = [...pane.children].filter(el => el.getClientRects().length && getComputedStyle(el).position !== 'absolute');
+    const number = value => parseFloat(value) || 0;
+    const used = children.reduce((total, el) => {
+      const childStyle = getComputedStyle(el);
+      return total + el.offsetHeight + number(childStyle.marginTop) + number(childStyle.marginBottom);
+    }, 0) + Math.max(0, children.length - 1) * number(style.rowGap);
+    return { children, free: Math.max(0, pane.clientHeight - number(style.paddingTop) - number(style.paddingBottom) - used - 4) };
+  }
+  function breathe(pane, cards = []) {
+    if (!pane || getComputedStyle(pane).display !== 'flex') return;
+    const { free } = spareHeight(pane);
+    if (free < 12) return;
+    // Card rows receive part of the space; the rest separates content groups.
+    if (cards.length) {
+      const rows = new Set(cards.map(el => el.offsetTop)).size;
+      const padding = Math.min(16, free * .4 / (2 * rows));
+      for (const card of cards) {
+        const style = getComputedStyle(card);
+        spaceStyle(card, 'padding-top', parseFloat(style.paddingTop) + padding);
+        spaceStyle(card, 'padding-bottom', parseFloat(style.paddingBottom) + padding);
+      }
+    }
+    const measured = spareHeight(pane);
+    if (measured.children.length > 1) {
+      const gap = parseFloat(getComputedStyle(pane).rowGap) || 0;
+      spaceStyle(pane, 'row-gap', gap + Math.min(40, measured.free * .8 / (measured.children.length - 1)));
+    }
+  }
+  function fitBreathingRoom() {
+    if (document.body.classList.contains('keyboard-open') || innerHeight <= 540) return;
+    const setup = app.querySelector('.setup-body');
+    breathe(setup, setup ? [...setup.querySelectorAll('.player-input,.category,.time-choice,.length-choice')] : []);
+    if (app.dataset.screen !== 'attempts') breathe(app.querySelector('.play-panel'));
+    const scores = app.querySelector('.finish-scores');
+    breathe(scores, scores ? [...scores.querySelectorAll('.leaderboard-row')] : []);
+  }
   function fitStage() {
+    resetSpacing();
     const viewport = window.visualViewport;
     const input = document.activeElement;
     // Installed iPhone apps can exclude safe areas from visualViewport.height.
@@ -198,6 +250,7 @@
       }
       word.style.setProperty('font-size', `${Math.floor(lower * 100) / 100}px`, 'important');
     });
+    fitBreathingRoom();
     const pane = input?.matches('input[data-player]') && input.closest('.setup-body');
     if (pane) {
       const field = input.getBoundingClientRect(), bounds = pane.getBoundingClientRect();
