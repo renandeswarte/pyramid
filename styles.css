@@ -697,3 +697,9 @@ html.web-app-mode body input,html.web-app-mode body textarea,html.web-app-mode b
 html.touch-input body input,html.touch-input body textarea,html.touch-input body [contenteditable="true"] {
   -webkit-user-select:text; user-select:text; -webkit-touch-callout:default;
 }
+
+/* A quiet edit hint for empty names; the whole label still focuses the input. */
+.player-input { position:relative; }
+.player-input input:placeholder-shown { padding-right:24px; }
+.name-edit-icon { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; visibility:hidden; }
+.player-input input:placeholder-shown + .name-edit-icon { visibility:visible; }
