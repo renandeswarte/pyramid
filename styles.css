@@ -7,10 +7,13 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.orbit-sweep{transform:translate(-50%,-50%)}.reveal-meter i{transform:scaleX(1)}.stage-enter{opacity:1}.orbit-sparks{display:none}}
 
 /* A screen-sized stage. Panels adapt to both width and usable browser height. */
-html { height:100%; overflow:hidden; }
+html { height:100%; overflow:hidden; --safe-area-top:env(safe-area-inset-top,0px); }
 /* Installed app windows allow panning, without pinch or double-tap zoom. */
 html.web-app-mode,html.web-app-mode * { touch-action:pan-x pan-y; }
 body { height:100vh; height:100dvh; min-height:0; overflow:hidden; }
+/* Covered iOS app windows need vh: dvh/innerHeight can omit the status-bar area.
+   If iOS reserves the status bar (safe top = 0), keep the normal dvh sizing. */
+html.ios-covered-viewport body { height:100vh; }
 .app-shell {
   height:100%; display:grid; grid-template-rows:64px minmax(0,1fr) 28px;
   padding:env(safe-area-inset-top) max(24px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(24px,env(safe-area-inset-left));
@@ -651,4 +654,9 @@ dialog { max-height:calc(100dvh - 48px); overflow:hidden; }
 .keyboard-open .setup-heading { padding-top:0; }
 @media(min-width:701px) and (min-height:761px) and (max-height:850px) {
   .setup-content { gap:16px; }
+}
+
+/* Leave a few pixels for WebKit's text metrics in the three-option length step. */
+@media(max-width:700px) and (min-height:761px) {
+  .balance-note { margin-top:20px; }
 }

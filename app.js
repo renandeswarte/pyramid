@@ -210,7 +210,7 @@
     }
   }
   function fitBreathingRoom() {
-    if (document.body.classList.contains('keyboard-open') || innerHeight <= 540) return;
+    if (document.body.classList.contains('keyboard-open') || document.body.clientHeight <= 540) return;
     const setup = app.querySelector('.setup-body');
     breathe(setup, setup ? [...setup.querySelectorAll('.player-input,.category,.time-choice,.length-choice')] : []);
     if (app.dataset.screen !== 'attempts') breathe(app.querySelector('.play-panel'));
@@ -221,11 +221,14 @@
     resetSpacing();
     const viewport = window.visualViewport;
     const input = document.activeElement;
-    // Installed iPhone apps can exclude safe areas from visualViewport.height.
-    // The shell already pads those areas; only shrink it for an on-screen keyboard.
-    const keyboardOpen = Boolean(input?.matches('input[data-player]') && viewport?.scale === 1 && viewport.height < innerHeight * .8);
-    const height = keyboardOpen ? Math.min(innerHeight, viewport.height + viewport.offsetTop) : innerHeight;
-    document.body.style.height = `${height}px`;
+    // iOS standalone innerHeight can omit safe areas even with viewport-fit=cover.
+    // Let CSS size the stage; use the visual viewport only while editing a name.
+    const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-top')) || 0;
+    document.documentElement.classList.toggle('ios-covered-viewport', navigator.standalone === true && safeTop > 0);
+    document.body.style.removeProperty('height');
+    const stageHeight = document.body.clientHeight;
+    const keyboardOpen = Boolean(input?.matches('input[data-player]') && viewport?.scale === 1 && viewport.height < stageHeight * .8);
+    if (keyboardOpen) document.body.style.height = `${Math.min(stageHeight, viewport.height + viewport.offsetTop)}px`;
     document.body.classList.toggle('keyboard-open', keyboardOpen);
     // Measure the actual browser text, including the font and fixed letter spacing.
     document.querySelectorAll('.secret-word:not(.word-hidden), .recap-word').forEach(word => {
@@ -258,6 +261,7 @@
       else if (field.top < bounds.top + 6) pane.scrollTop -= bounds.top - field.top + 6;
     }
   }
+  window.addEventListener('pageshow', () => requestAnimationFrame(fitStage));
   window.addEventListener('resize', () => requestAnimationFrame(fitStage));
   window.visualViewport?.addEventListener('resize', () => requestAnimationFrame(fitStage));
   window.visualViewport?.addEventListener('scroll', () => requestAnimationFrame(fitStage));
