@@ -21,6 +21,14 @@
   const preventAppPinch = event => { if (event.touches.length > 1) preventAppZoom(event); };
   document.addEventListener('touchstart', preventAppPinch, { passive: false });
   document.addEventListener('touchmove', preventAppPinch, { passive: false });
+  // Suppress synthesized hover after touch, including on tablets with a trackpad.
+  // Real mouse input restores desktop hover; native taps and scrolling stay intact.
+  const inputMode = event => {
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') document.documentElement.classList.add('touch-input');
+    else if (event.pointerType === 'mouse') document.documentElement.classList.remove('touch-input');
+  };
+  document.addEventListener('pointerdown', inputMode, { passive: true });
+  document.addEventListener('pointermove', inputMode, { passive: true });
   const storageKey = 'pyramid-game-v1';
   const preferencesKey = 'pyramid-preferences-v1';
   const defaults = ['Renan', 'Valerie', 'Thomas', 'Chloe'];
