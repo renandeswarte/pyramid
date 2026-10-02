@@ -71,9 +71,19 @@ async page => {
   check(await p.locator('[data-action="confirm-language"]').isVisible(), 'Language restart confirmation missing');
   check(await p.locator('html').getAttribute('lang') === 'fr', 'Language changed before confirmation');
   await p.locator('[data-action="confirm-language"]').click();
+  check(await p.locator('#app').getAttribute('data-screen') === 'setup-0', 'Language confirmation did not return home');
+  check(await p.locator('html').getAttribute('lang') === 'en', 'Home uses the old language');
+  check(await p.evaluate(() => sessionStorage.getItem('pyramid-game-v1')) === null, 'Old game remains saved');
+  const preferences = await p.evaluate(() => JSON.parse(localStorage.getItem('pyramid-preferences-v2')));
+  check(preferences.names.join() === 'Zoé,Noé' && preferences.category === 'animals' && preferences.seconds === 60 && preferences.turns === 1 && preferences.jokers === 2, 'Return home changed remembered settings');
+  await p.clock.runFor(120100);
+  check(await p.locator('#app').getAttribute('data-screen') === 'setup-0', 'Old timer or selection restarted the game');
+  await p.evaluate(() => window.name = ''); await p.reload();
+  check(await p.locator('#app').getAttribute('data-screen') === 'setup-0' && await p.locator('html').getAttribute('lang') === 'en', 'Refresh restored old game or language');
+  for(let i=0;i<4;i++)await p.locator('[data-action="setup-next"]').click();
+  await p.locator('[data-action="start"]').click();
   let game = await p.evaluate(() => JSON.parse(sessionStorage.getItem('pyramid-game-v1')));
-  check(game.language === 'en' && game.history.length === 0 && game.index === 0 && game.players.every(p=>p.guessing===0&&p.telling===0&&p.jokersUsed===0), 'Restart retained progress or wrong language');
-  check(game.players.map(p=>p.name).join() === 'Zoé,Noé' && game.category === 'animals' && game.seconds === 60 && game.turns === 1 && game.jokers === 2, 'Restart changed settings');
+  check(game.language === 'en' && game.history.length === 0 && game.index === 0 && game.players.every(p=>p.guessing===0&&p.telling===0&&p.jokersUsed===0), 'Fresh game retained progress or wrong language');
   await p.clock.runFor(3100); await p.locator('[data-action="find-guesser"]').click(); await p.locator('[data-action="reveal"]').click();
   game = await p.evaluate(() => JSON.parse(sessionStorage.getItem('pyramid-game-v1')));
   check(await p.evaluate(word => PyramidWords.animals.includes(word),game.current.word), 'Restart used old language deck');
@@ -81,7 +91,11 @@ async page => {
   await p.clock.runFor(60100);
   check(!await p.locator('#modal').evaluate(el=>el.open), 'Expired confirmation remained open');
   check(await p.locator('#app').getAttribute('data-screen') === 'recap', 'Confirmation paused timer');
-  results.push({languageRestartResetsScores:true,preservesNamesAndSettings:true,newDeckLanguage:true,timerContinuesDuringConfirmation:true});
+  await p.locator('#language-button').click(); await p.locator('[data-language="fr"]').click();
+  await p.locator('[data-action="confirm-language"]').click();
+  check(await p.locator('#app').getAttribute('data-screen') === 'setup-0' && await p.locator('html').getAttribute('lang') === 'fr', 'Reverse language change did not return to French setup');
+  check(await p.evaluate(() => sessionStorage.getItem('pyramid-game-v1')) === null, 'Reverse language change retained game');
+  results.push({languageChangeReturnsHome:true,refreshStaysHome:true,languageRestartResetsScores:true,preservesNamesAndSettings:true,newDeckLanguage:true,timerContinuesDuringConfirmation:true});
   // Restore an older 10-player game with a balanced one-cycle schedule.
   await p.evaluate(() => {
     const names=Array.from({length:10},(_,i)=>'Player '+(i+1));

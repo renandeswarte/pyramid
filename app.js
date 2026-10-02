@@ -427,7 +427,7 @@
     } finally { installBusy = false; }
   }
   function languages() {
-    openModal(t('Language'), `<div class="language-choices">${['en','fr'].map(language => `<button class="language-choice" data-action="language" data-language="${language}" aria-pressed="${settings.language === language}" lang="${language}"><span class="language-flag">${flag(language)}</span><strong>${languageName(language)}</strong>${settings.language === language ? icon('check',20) : ''}</button>`).join('')}</div>${game && game.phase !== 'finished' ? `<p class="hint">${t('Changing language during a game restarts it and resets the scores. Your names and settings are kept.')}</p>` : ''}`);
+    openModal(t('Language'), `<div class="language-choices">${['en','fr'].map(language => `<button class="language-choice" data-action="language" data-language="${language}" aria-pressed="${settings.language === language}" lang="${language}"><span class="language-flag">${flag(language)}</span><strong>${languageName(language)}</strong>${settings.language === language ? icon('check',20) : ''}</button>`).join('')}</div>${game && game.phase !== 'finished' ? `<p class="hint">${t('Changing language ends this game and returns you to setup. Your saved names and settings are kept.')}</p>` : ''}`);
   }
   function handleAction(action, button) {
     activateAudio();
@@ -437,13 +437,13 @@
       const language = button.dataset.language;
       const active = game && game.phase !== 'finished';
       if (action === 'language' && active && language !== game.language) {
-        openModal(t('Change language and restart?'), `<p>${t('Changing to {language} starts a new game and clears the current words, scores, and progress. Your player names and game settings are kept.', {language:languageName(language)})}</p><p class="hint">${t('The current timer keeps running until you confirm.')}</p>`, `<div class="modal-actions"><button class="secondary-button" data-action="close-modal">${t('Cancel')}</button><button class="primary-button" data-action="confirm-language" data-language="${language}">${t('Change language & restart')}</button></div>`);
+        openModal(t('Change language and return home?'), `<p>${t('Changing to {language} clears the current words, scores, and progress, then returns you to the first setup screen. Your saved names and settings are kept.', {language:languageName(language)})}</p><p class="hint">${t('The current timer keeps running until you confirm.')}</p>`, `<div class="modal-actions"><button class="secondary-button" data-action="close-modal">${t('Cancel')}</button><button class="primary-button" data-action="confirm-language" data-language="${language}">${t('Change language & go home')}</button></div>`);
         return;
       }
       if (action === 'confirm-language' && active) {
-        // Restart with the current game's configuration, including restored games.
+        // Keep remembered preferences, but return to setup without creating a game.
         Object.assign(settings, {names:game.players.map(p => p.name), category:game.category, seconds:game.seconds, turns:game.turns, jokers:game.jokers});
-        settings.language = language; modal.close(); clearGame(); startGame(); return;
+        settings.language = language; modal.close(); clearGame(); return;
       }
       settings.language = language; setupError = '';
       if (game) E.expire(game);
