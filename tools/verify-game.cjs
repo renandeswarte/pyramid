@@ -8,7 +8,7 @@ let checks = 0;
 function check(condition, message) { assert.ok(condition, message); checks++; }
 
 // Check the real scheduling algorithm over many seeds and all supported sizes.
-for (let n = 2; n <= 10; n++) {
+for (let n = 2; n <= 8; n++) {
   for (const rounds of [1, 2, 3, 4, 6, 9, 18]) {
   for (let seed = 1; seed <= 60; seed++) {
     const schedule = E.schedule(n, random(seed), rounds);
@@ -39,7 +39,7 @@ function game(n = 4) { return E.createGame(Array.from({ length: n }, (_, i) => `
 function ready(g, time = 1000) { g.phase = 'ready'; E.beginBetting(g, time); }
 
 // Short games: resource budget, penalties and final bonuses scale with length.
-for (const [n, rounds] of [[2,1],[2,3],[3,2],[3,4],[4,3],[10,9]]) {
+for (const [n, rounds] of [[2,1],[2,3],[3,2],[3,4],[4,3],[8,7]]) {
   for (const outcome of ['correct', 'timeout', 'joker']) {
     const g = E.createGame(Array.from({length:n}, (_,i)=>`Player ${i+1}`), 'global', 30, words, random(42), rounds);
     check(g.players.every(p=>p.bricks===rounds*3), 'Short-game starting bricks');
@@ -67,7 +67,7 @@ for (const [n, rounds] of [[2,1],[2,3],[3,2],[3,4],[4,3],[10,9]]) {
 }
 
 // Six one-brick successful tells and guesses: 6+6+12 saved bricks+1 Joker = 25.
-for (const n of [2, 3, 4, 10]) {
+for (const n of [2, 3, 4, 8]) {
   const g = game(n);
   while (g.phase !== 'finished') {
     ready(g);
@@ -137,7 +137,7 @@ for (const place of ['London','Paris','France','Canada','Tokyo','Asia','Africa']
 for (const word of ['whisper','careful','quickly','before','mountain']) check(words.includes(word), `Global retains ordinary word ${word}`);
 for (const category of ['global', 'food', 'animals', 'geography', 'body', 'kids', 'teens']) {
   const deck = JSON.parse(fs.readFileSync(path.join(__dirname, `../data/${category}.json`), 'utf8'));
-  check(deck.length >= 100, `${category} supports ten players with nine turns and Jokers`);
+  check(deck.length >= 72, `${category} supports eight players with seven turns and two Jokers`);
   check(new Set(deck.map(w => w.toLowerCase())).size === deck.length, `${category} has no duplicates`);
 }
 // Every Joker allowance and usage count: final score, resource limits, unique swaps.
@@ -194,4 +194,12 @@ for (const seconds of [30, 60]) {
 }
 assert.throws(() => E.createGame(['A','B'], 'global', 30, words, Math.random, 1, 3));
 assert.throws(() => E.createGame(['A','B'], 'global', 30, ['a','b','c','d','e'], Math.random, 1, 2));
+
+
+for (const count of [1, 9, 10]) {
+  let rejected = false;
+  try { E.schedule(count); } catch (error) { rejected = error.message === "Choose between 2 and 8 players."; }
+  check(rejected, `New games reject ${count} players`);
+}
+
 console.log(`Passed ${checks.toLocaleString()} game-rule and schedule checks.`);

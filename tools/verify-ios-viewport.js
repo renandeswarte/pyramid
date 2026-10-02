@@ -24,7 +24,7 @@ async page => {
  if(step<4)await p.locator('[data-action="setup-next"]').click();
  }
  if(name==='iphone-reduced-top'){
- await p.locator('[data-action="setup-step"][data-step="0"]').click();for(let i=0;i<6;i++)await p.locator('[data-action="add-player"]').click();await p.locator('[data-player="9"]').focus();await p.evaluate(()=>{window.qaVisibleHeight=420;visualViewport.dispatchEvent(new Event('resize'))});await settle();
+ await p.locator('[data-action="setup-step"][data-step="0"]').click();for(let i=0;i<4;i++)await p.locator('[data-action="add-player"]').click();await p.locator('[data-player="7"]').focus();await p.evaluate(()=>{window.qaVisibleHeight=420;visualViewport.dispatchEvent(new Event('resize'))});await settle();
  const m=await p.evaluate(()=>({height:document.body.clientHeight,keyboard:document.body.classList.contains('keyboard-open'),nav:document.querySelector('.setup-navigation').getBoundingClientRect().bottom,field:document.activeElement.getBoundingClientRect().bottom,pane:document.querySelector('.setup-body').getBoundingClientRect().bottom}));
  if(m.height!==420||!m.keyboard||m.nav>420||m.field>m.pane+1)throw Error('Keyboard '+JSON.stringify(m));results.push({name,keyboard:m});
  await p.evaluate(()=>{window.qaVisibleHeight=759;document.activeElement.blur();visualViewport.dispatchEvent(new Event('resize'));window.dispatchEvent(new Event('pageshow'));});await settle();if(await p.evaluate(()=>document.body.clientHeight)!==852)throw Error('Height did not recover after keyboard');

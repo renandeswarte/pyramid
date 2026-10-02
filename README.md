@@ -14,7 +14,7 @@ Then open http://127.0.0.1:4173. Installation and offline caching need localhost
 
 ## Rules
 
-- 2–10 players; first-time visitors start with four empty name fields. Names and setup choices are remembered on this device.
+- 2–8 players; first-time visitors start with four empty name fields. Names and setup choices are remembered on this device.
 - Setup moves through five screens: Players → Words → Time → Jokers → Length. Short games and the six-turn Classic game are available. Each player gets three starting blue bricks per telling turn and 0, 1, or 2 Jokers per game (one by default).
 - For two players choose 1, 3 or 6 turns per role; for three choose 2, 4 or 6; for four choose 3 or 6. Larger groups can choose six turns or a full round robin of `players − 1` turns. Six-turn Classic starts with 18 bricks; the shortest two-, three- and four-player games start with 3, 6 and 9 respectively.
 - One turn is one word. Bet 1–3 bricks before the 30- or 60-second betting deadline (30 seconds by default). The full bet is committed with no refund for an early success.
@@ -45,7 +45,7 @@ A flag beside the sound control opens the language picker (English / Français).
 
 Preferences use `localStorage` (`pyramid-preferences-v2`): names, player count, category, time, Jokers, game length, sound, and language. New games retain them but reset scores. Custom names from an existing session migrate; the old shipped four-name defaults are removed. If persistent storage is blocked, session storage is used when available. No account, cookies, or server storage is needed. Clearing site data removes preferences; private browsing and different browser/installed-app storage containers can keep separate or temporary copies. No cross-device synchronization is implied.
 
-The game stores its word language when it starts. Switching the interface mid-game preserves the word, unused deck, history, scores, and deadlines. The selected word language takes effect on the next game. Older saved games are English. Both language bundles are cached for offline switching after a complete online load.
+Language changes during setup apply immediately and keep names and settings. During an active game, changing language requires confirmation: cancel keeps the current game and timer intact; confirm starts a new game in the selected language with the same players and game settings, and resets words and scores. After a finished game, language changes immediately; Play again uses the new language. Older saved games are English. Saved groups of nine or ten remain visible until the user reduces them with the minus control; they cannot start a new game until they have at most eight players. Existing active games with larger groups can finish normally. Both language bundles are cached for offline switching after a complete online load.
 
 French decks are independently curated: 2,795 general words, 334 food, 323 animals, 311 geography, 264 body, 528 kids, and 505 teens. Ordinary words are verified against ATILF Morphalou 3.1; French place names come from Unicode CLDR and reviewed Wikidata labels. See `data/fr/SOURCES.md` and included licenses. Age and theme assignments are editorial.
 
@@ -72,7 +72,7 @@ node tools/verify-game.cjs
 node tools/verify-language-data.cjs
 ```
 
-Browser verification also covers complete games, betting expiry, refresh privacy, responsive layouts, and offline reload. `tools/verify-localization.js` checks saved preferences, first-visit French detection, language switching during play, French Jokers, timer expiry, a complete French game, and fallback when persistent storage is blocked. `tools/verify-ios-viewport.js` is a Playwright CLI `run-code` scenario for WebKit and Chromium, including reduced iOS height reports, safe areas, keyboard entry, and restored app windows. These simulated cases do not replace physical iPhone testing. When updating cached assets for a future release, change the cache version in `sw.js`.
+Browser verification also covers complete games, betting expiry, refresh privacy, responsive layouts, and offline reload. `tools/verify-localization.js` checks saved preferences, first-visit French detection, language switching during play, French Jokers, timer expiry, a complete French game, and fallback when persistent storage is blocked. `tools/verify-install-and-settings.js` checks install prompt acceptance/dismissal and fallback, installed-mode visibility, the eight-player limit and older saved groups, active-game language restart/cancel behavior, and completion of older ten-player games. Native installation events are simulated; physical Android installation still needs a device check. `tools/verify-ios-viewport.js` is a Playwright CLI `run-code` scenario for WebKit and Chromium, including reduced iOS height reports, safe areas, keyboard entry, and restored app windows. These simulated cases do not replace physical iPhone testing. When updating cached assets for a future release, change the cache version in `sw.js`.
 
 ## Edit word files
 
@@ -87,3 +87,5 @@ The public game address is https://renandeswarte.github.io/pyramid/. The source 
 Pages publishes the `main` branch from `/(root)`. Push changes to `main` to update the game. No build step is required; `.nojekyll` tells Pages to serve the static files directly. All asset paths are relative so the `/pyramid/` subfolder works. ZIP downloads, test screenshots, local browser profiles, and Python cache files are excluded from Git.
 
 On iPhone or iPad, open the game in Safari and choose Share → Add to Home Screen for standalone app mode. Offline play becomes available after the first successful load and caching. When changing app assets, bump the cache version in `sw.js` so installed copies receive the update.
+
+On Android, open Pyramid in Chrome and choose ⋮ → Add to Home screen → Install (some versions show Install app directly). The visible **Install Pyramid** action on the Players setup screen and in About opens the native installation prompt when Chrome provides it, and otherwise shows browser instructions. No prompt is opened automatically. Install actions disappear in standalone mode or after the browser reports installation. Both manifests share one app identity, scope and standalone display mode. Sources and license attribution are available through a separate link in About.

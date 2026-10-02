@@ -21,7 +21,7 @@ for (const language of ['en','fr']) {
     const words = Array.isArray(source) ? source : source.words;
     if (language === 'fr') assert(source.notice.includes('LGPL-LR'), 'French source notice missing');
     assert.deepEqual(JSON.parse(JSON.stringify(bundle[category])), words, `Bundle differs: ${language}/${category}`);
-    assert(words.length >= 110, 'Enough words for 10 players, nine turns, two Jokers');
+    assert(words.length >= 72, 'Enough words for 8 players, seven turns, two Jokers');
     assert.equal(new Set(words.map(w => w.toLowerCase())).size, words.length, 'No case-insensitive duplicates');
     if (language === 'fr') for (const word of words) {
       assert.equal(word, word.normalize('NFC'), 'Preserve normalized accents');

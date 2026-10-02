@@ -41,7 +41,7 @@
   let settings = { language: detectedLanguage, names: [...defaults], category: 'global', seconds: 30, turns: 6, jokers: 1, muted: false };
   let setupStep = 0, stepDirection = 1, lastScreen = '', leaderboardPage = 0;
   let game = null, animationTimer = null, animationEnd = null, hiddenWord = false, privacy = false, setupError = '', lastTick = null;
-  let audioContext = null, installPrompt = null, storageAvailable = true, preferencesAvailable = true;
+  let audioContext = null, installPrompt = null, installBusy = false, appInstalled = webAppMode, storageAvailable = true, preferencesAvailable = true;
   const paths = {
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/>',
     food: '<path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3v18M18 3c-5 4-5 10 0 10"/>',
@@ -62,6 +62,7 @@
     trophy: '<path d="M7 3h10v5a5 5 0 0 1-10 0ZM7 5H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4M12 13v5m-4 3v-3h8v3Z"/>',
     gem: '<path d="m12 2 9 8-9 12L3 10ZM3 10h18M7 6l5 16 5-16"/>',
     pair: '<path d="M5 12h14M9 8l-4 4 4 4m6-8 4 4-4 4"/>',
+    download: '<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>',
     book: '<path d="M12 5v16M12 5C9 2 5 2 2 4v16c3-2 7-2 10 1 3-3 7-3 10-1V4c-3-2-7-2-10 1Z"/>',
     pencil: '<path d="m16 3 5 5-12 12-6 1 1-6ZM14 5l5 5"/>',
     plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>'
@@ -96,6 +97,7 @@
   }
   if (storedSettings && typeof storedSettings === 'object') {
     const names = storedSettings.names;
+    // Keep older 9–10-player preferences visible so the user chooses whom to remove.
     if (Array.isArray(names) && names.length >= 2 && names.length <= 10 && names.every(n => typeof n === 'string' && n.length <= 24)) settings.names = [...names];
     if (['en', 'fr'].includes(storedSettings.language)) settings.language = storedSettings.language;
     if ([0, 1, 2].includes(storedSettings.jokers)) settings.jokers = storedSettings.jokers;
@@ -146,16 +148,17 @@
   function normalizeTurns() { if (!turnOptions().includes(settings.turns)) settings.turns = 6; }
   function home() {
     normalizeTurns();
+    if (settings.names.length > E.MAX_PLAYERS) setupError = t('Games now support up to 8 players. Use − to remove the last player until your group fits.');
     const titles = ['Who’s at the table?', 'Pick your words.', 'Set the pace.', 'A little room for magic.', 'How big is your Pyramid?'];
     const subtitles = ['Good company. One device. Let’s make some guesses.', 'Pick a world of words for everyone to play with.', 'The same time limit for your bet and each clue + guess.', 'Choose how many word swaps each player gets for the whole game.', 'A quick round or a longer game? Everyone gets equal turns.'];
     const eyebrows = ['THE WORD GAME FOR GOOD COMPANY', 'A WORLD OF POSSIBILITIES', 'A LITTLE PRESSURE. A LOT OF FUN.', 'YOUR SECRET RESERVE', 'MAKE EVERY CLUE COUNT'];
     let content;
-    if (setupStep === 0) content = `<div class="party-emblem" aria-hidden="true"><span class="gem"></span><span class="gem"></span><span class="gem"></span></div><div class="counter-control"><button class="small-button" data-action="remove-player" aria-label="${t('Remove last player')}" ${settings.names.length <= 2 ? 'disabled' : ''}>${icon('minus', 18)}</button><strong>${settings.names.length} <span>${t('players')}</span></strong><button class="small-button" data-action="add-player" aria-label="${t('Add player')}" ${settings.names.length >= 10 ? 'disabled' : ''}>${icon('plus', 18)}</button></div><div class="players-grid">${settings.names.map((name, id) => `<label class="player-input" style="--i:${id}">${avatar({ name, id })}<span class="sr-only">${t('Player {n} name', {n:id + 1})}</span><input data-player="${id}" value="${escape(name)}" maxlength="24" autocomplete="off" spellcheck="false" required placeholder="${t('Player {n}', {n:id + 1})}"><span class="name-edit-icon" aria-hidden="true">${icon('pencil', 16)}</span></label>`).join('')}</div><p class="setup-tip">${icon('pair', 16)} ${t('Tell a word. Guess a word. Take turns being brilliant.')}</p>`;
+    if (setupStep === 0) content = `<div class="party-emblem" aria-hidden="true"><span class="gem"></span><span class="gem"></span><span class="gem"></span></div><div class="counter-control"><button class="small-button" data-action="remove-player" aria-label="${t('Remove last player')}" ${settings.names.length <= 2 ? 'disabled' : ''}>${icon('minus', 18)}</button><strong>${settings.names.length} <span>${t('players')}</span></strong><button class="small-button" data-action="add-player" aria-label="${t('Add player')}" ${settings.names.length >= E.MAX_PLAYERS ? 'disabled' : ''}>${icon('plus', 18)}</button></div><div class="players-grid">${settings.names.map((name, id) => `<label class="player-input" style="--i:${id}">${avatar({ name, id })}<span class="sr-only">${t('Player {n} name', {n:id + 1})}</span><input data-player="${id}" value="${escape(name)}" maxlength="24" autocomplete="off" spellcheck="false" required placeholder="${t('Player {n}', {n:id + 1})}"><span class="name-edit-icon" aria-hidden="true">${icon('pencil', 16)}</span></label>`).join('')}</div><div class="setup-tip install-slot">${canInstall() ? installButton() : `${icon('pair', 16)} ${t('Tell a word. Guess a word. Take turns being brilliant.')}`}</div>`;
     else if (setupStep === 1) content = `<div class="category-grid">${categories.map(([id, name, label, symbol], i) => `<button class="category ${id === 'global' ? 'category-global' : ''}" style="--i:${i}" data-action="category" data-category="${id}" aria-pressed="${settings.category === id}"><span class="category-symbol">${icon(symbol, 28)}</span><span class="category-name">${t(name)}<span class="category-meta">${t(label)}</span></span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><p class="setup-tip">${icon('globe', 16)} ${t('{language} · {count} words in this deck', {language:languageName(settings.language),count:deck()[settings.category].length.toLocaleString(settings.language)})}</p>`;
     else if (setupStep === 2) content = `<div class="time-choices">${[30, 60].map((seconds, i) => `<button class="time-choice" style="--i:${i}" data-action="time" data-seconds="${seconds}" aria-pressed="${settings.seconds === seconds}"><span class="time-dial">${icon('clock', 42)}</span><strong>${seconds}<small>${t('seconds')}</small></strong><span>${t(seconds === 30 ? 'Keep it moving' : 'Room to think')}</span><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('clock', 20)}<p>${t('Place your bet before the clock runs out.')}<br><strong>${t('Bet timeout: turn lost. Guess timeout: attempt lost.')}</strong></p></div>`;
     else if (setupStep === 3) content = `<div class="length-choices joker-choices">${[0, 1, 2].map((n, i) => `<button class="length-choice" style="--i:${i}" data-action="jokers" data-jokers="${n}" aria-pressed="${settings.jokers === n}"><span class="length-label">${t(['All in', 'A second chance', 'More possibilities'][n])}</span><strong>${n}</strong><span>${t(isSingular(n) ? 'Joker each' : 'Jokers each')}</span><small>${n === 0 ? t('Play every word') : t(isSingular(n) ? 'Up to +{n} bonus point' : 'Up to +{n} bonus points',{n})}</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="setup-callout">${icon('spark', 20)}<p>${t('Swap a word before you bet. The timer keeps running.')}<br><strong>${t('Each unused Joker earns 1 bonus point.')}</strong></p></div>`;
     else content = `<div class="length-choices">${turnOptions().map((turns, i) => `<button class="length-choice" style="--i:${i}" data-action="length" data-turns="${turns}" aria-pressed="${settings.turns === turns}"><span class="length-label">${t(turns === 6 ? 'Classic' : turns === settings.names.length - 1 ? (turns < 6 ? 'Quick game' : 'Round robin') : 'A little longer')}</span><strong>${turns}</strong><span>${t(turns === 1 ? 'turn each, per role' : 'turns each, per role')}</span><small>${t('{words} words · {bricks} bricks each',{words:settings.names.length * turns,bricks:turns * 3})}</small><span class="choice-check">${icon('check', 14)}</span></button>`).join('')}</div><div class="balance-note">${icon('pair', 22)}<div><strong>${t(settings.turns % (settings.names.length - 1) === 0 ? 'Every partner. Exactly equal.' : 'Equal roles. Balanced partners.')}</strong><p>${settings.turns % (settings.names.length - 1) === 0 ? t(settings.turns / (settings.names.length - 1) === 1 ? 'Each player tells to every other player once, and guesses for them equally.' : 'Each player tells to every other player {n} times, and guesses for them equally.',{n:settings.turns / (settings.names.length - 1)}) : t('Everyone tells and guesses the same number of times. Partner counts differ by at most one.')}</p></div></div><div class="launch-summary"><span>${t('{n} players',{n:settings.names.length})}</span><i></i><span>${categoryName(settings.category)}</span><i></i><span>${t('{n}s per timer',{n:settings.seconds})}</span><i></i><span>${t(isSingular(settings.jokers) ? '{n} Joker each' : '{n} Jokers each',{n:settings.jokers})}</span></div>`;
-    return `<section class="setup-stage"><nav class="setup-steps" aria-label="${t('Game setup')}">${['Players', 'Words', 'Time', 'Jokers', 'Length'].map((name, i) => `<button data-action="setup-step" data-step="${i}" class="${i === setupStep ? 'current' : i < setupStep ? 'complete' : ''}" ${i > setupStep ? 'disabled' : ''} ${i === setupStep ? 'aria-current="step"' : ''}><span>${i < setupStep ? icon('check', 12) : i + 1}</span><small>${t(name)}</small></button>`).join('')}</nav><div class="setup-content ${lastScreen !== 'setup-' + setupStep ? 'stage-enter' : ''}" style="--direction:${stepDirection}"><div class="setup-heading"><p class="eyebrow">${t(eyebrows[setupStep])}</p><h1>${t(titles[setupStep])}</h1><p class="subtitle">${t(subtitles[setupStep])}</p></div><div class="setup-body">${content}</div><p id="setup-error" class="error-message" role="alert" ${!setupError ? 'hidden' : ''}>${escape(setupError)}</p></div><div class="setup-navigation">${setupStep ? `<button class="secondary-button" data-action="setup-back">${t('← Back')}</button>` : ''}<button class="primary-button" data-action="${setupStep === 4 ? 'start' : 'setup-next'}">${setupStep === 4 ? icon('spark', 19) + ' ' + t('Let’s play') : t(['Choose your words', 'Set the time', 'Choose your Jokers', 'Choose game length'][setupStep]) + ' <span aria-hidden="true">→</span>'}</button></div><p class="start-note">${setupStep === 0 ? t('Edit the names. Invite 2–10 players.') : setupStep === 4 ? t('Fewer clues. More points. One shared device.') : t('STEP {n} OF 5',{n:setupStep + 1})}</p></section>`;
+    return `<section class="setup-stage"><nav class="setup-steps" aria-label="${t('Game setup')}">${['Players', 'Words', 'Time', 'Jokers', 'Length'].map((name, i) => `<button data-action="setup-step" data-step="${i}" class="${i === setupStep ? 'current' : i < setupStep ? 'complete' : ''}" ${i > setupStep ? 'disabled' : ''} ${i === setupStep ? 'aria-current="step"' : ''}><span>${i < setupStep ? icon('check', 12) : i + 1}</span><small>${t(name)}</small></button>`).join('')}</nav><div class="setup-content ${lastScreen !== 'setup-' + setupStep ? 'stage-enter' : ''}" style="--direction:${stepDirection}"><div class="setup-heading"><p class="eyebrow">${t(eyebrows[setupStep])}</p><h1>${t(titles[setupStep])}</h1><p class="subtitle">${t(subtitles[setupStep])}</p></div><div class="setup-body">${content}</div><p id="setup-error" class="error-message" role="alert" ${!setupError ? 'hidden' : ''}>${escape(setupError)}</p></div><div class="setup-navigation">${setupStep ? `<button class="secondary-button" data-action="setup-back">${t('← Back')}</button>` : ''}<button class="primary-button" data-action="${setupStep === 4 ? 'start' : 'setup-next'}">${setupStep === 4 ? icon('spark', 19) + ' ' + t('Let’s play') : t(['Choose your words', 'Set the time', 'Choose your Jokers', 'Choose game length'][setupStep]) + ' <span aria-hidden="true">→</span>'}</button></div><p class="start-note">${setupStep === 0 ? t('Edit the names. Invite 2–8 players.') : setupStep === 4 ? t('Fewer clues. More points. One shared device.') : t('STEP {n} OF 5',{n:setupStep + 1})}</p></section>`;
   }
   function scoreList() {
     return game.players.map(p => `<div class="score-player ${E.pair(game)?.teller === p.id && game.phase !== 'finished' ? 'active' : ''}">${avatar(p)}<div class="score-name">${escape(p.name)}<span class="score-meta">${t('{told}/{total} told · {guessed}/{total} guessed',{told:p.told,total:game.turns,guessed:p.guessed})}</span></div><span class="score-number">${E.score(p)}</span></div>`).join('');
@@ -368,6 +371,7 @@
     }, 3000);
   }
   function startGame() {
+    if (settings.names.length > E.MAX_PLAYERS) { clearGame(); return; }
     try { game = E.createGame(settings.names, settings.category, settings.seconds, deck()[settings.category] || [], Math.random, settings.turns, settings.jokers); game.language = settings.language; }
     catch (error) { setupError = t(error.message); const box = document.getElementById('setup-error'); if (box) { box.hidden = false; box.textContent = setupError; } return; }
     setupError = ''; hiddenWord = false; privacy = false; lastTick = null; leaderboardPage = 0; save(); render();
@@ -379,7 +383,7 @@
   }
   function rules() { openModal(t('How to play'), t('rules.content')); }
   function about() {
-    openModal(t('About Pyramid'), `${t('about.content')}<p>${t(storageAvailable ? 'Refreshing restores the active game in this tab. Private words stay covered until the teller returns.' : 'This browser is blocking session storage. Keep this page open; refreshing will reset the game.')}</p><p>${t(preferencesAvailable ? 'Saved on this device.' : 'This browser cannot save preferences. They will only last for this session.')}</p>`);
+    openModal(t('About Pyramid'), `${t('about.content')}<div class="about-actions">${canInstall() ? installButton() : ''}<button class="text-button" data-action="sources">${t('Sources & licenses')}</button></div><p>${t(storageAvailable ? 'Refreshing restores the active game in this tab. Private words stay covered until the teller returns.' : 'This browser is blocking session storage. Keep this page open; refreshing will reset the game.')}</p><p>${t(preferencesAvailable ? 'Saved on this device.' : 'This browser cannot save preferences. They will only last for this session.')}</p>`);
   }
   function updateHeader() {
     document.documentElement.lang = settings.language;
@@ -393,22 +397,55 @@
     rulesButton.title = t('How to play');
     document.getElementById('about-button').setAttribute('aria-label', t('About Pyramid'));
     document.getElementById('about-button').title = t('About & word sources');
-    document.getElementById('install-button').textContent = t('Install app');
     const footer = document.querySelector('.app-footer');
     footer.firstElementChild.textContent = t('FEWER CLUES. MORE POINTS.');
     footer.lastElementChild.textContent = t('ONE WORD AT A TIME');
     const button = document.getElementById('language-button');
-    button.innerHTML = `<span aria-hidden="true">${settings.language === 'fr' ? '🇫🇷' : '🇬🇧'}</span>`;
+    button.innerHTML = flag(settings.language);
     button.setAttribute('aria-label', `${t('Choose language')} · ${languageName(settings.language)}`);
     button.title = t('Choose language');
   }
+  function flag(language) { return `<img src="assets/flag-${language}.svg" alt="" aria-hidden="true" draggable="false">`; }
+  function canInstall() { return !webAppMode && !appInstalled; }
+  function installButton() { return `<button class="install-action secondary-button" data-action="install" aria-haspopup="dialog">${icon('download',17)} ${t('Install Pyramid')}</button>`; }
+  function refreshInstallActions() {
+    document.querySelectorAll('[data-action="install"]').forEach(button => { button.hidden = !canInstall(); });
+    if (!canInstall() && modal.open && modal.querySelector('.install-guide')) modal.close();
+    if (!game && setupStep === 0) render(false);
+  }
+  async function installApp() {
+    if (!canInstall() || installBusy) return;
+    if (!installPrompt) { openModal(t('Install Pyramid'), `<div class="install-guide">${t('install.content')}</div>`); return; }
+    const prompt = installPrompt; installPrompt = null; installBusy = true;
+    try {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      // Acceptance is not installation completion; appinstalled confirms that.
+      if (choice?.outcome === 'accepted' && modal.open) modal.close();
+    } catch {
+      if (canInstall()) openModal(t('Install Pyramid'), `<div class="install-guide">${t('install.content')}</div>`);
+    } finally { installBusy = false; }
+  }
   function languages() {
-    openModal(t('Language'), `<div class="language-choices">${['en','fr'].map(language => `<button class="language-choice" data-action="language" data-language="${language}" aria-pressed="${settings.language === language}" lang="${language}"><span class="language-flag" aria-hidden="true">${language === 'fr' ? '🇫🇷' : '🇬🇧'}</span><strong>${languageName(language)}</strong>${settings.language === language ? icon('check',20) : ''}</button>`).join('')}</div>${game && game.phase !== 'finished' ? `<p class="hint">${t('The word language changes with your next game. This game keeps its original words.')}</p>` : ''}`);
+    openModal(t('Language'), `<div class="language-choices">${['en','fr'].map(language => `<button class="language-choice" data-action="language" data-language="${language}" aria-pressed="${settings.language === language}" lang="${language}"><span class="language-flag">${flag(language)}</span><strong>${languageName(language)}</strong>${settings.language === language ? icon('check',20) : ''}</button>`).join('')}</div>${game && game.phase !== 'finished' ? `<p class="hint">${t('Changing language during a game restarts it and resets the scores. Your names and settings are kept.')}</p>` : ''}`);
   }
   function handleAction(action, button) {
     activateAudio();
-    if (action === 'language' && ['en','fr'].includes(button.dataset.language)) {
-      settings.language = button.dataset.language; setupError = '';
+    if (action === 'install') { installApp(); return; }
+    if (action === 'sources') { openModal(t('Sources & licenses'), t('sources.content')); return; }
+    if (['language', 'confirm-language'].includes(action) && ['en','fr'].includes(button.dataset.language)) {
+      const language = button.dataset.language;
+      const active = game && game.phase !== 'finished';
+      if (action === 'language' && active && language !== game.language) {
+        openModal(t('Change language and restart?'), `<p>${t('Changing to {language} starts a new game and clears the current words, scores, and progress. Your player names and game settings are kept.', {language:languageName(language)})}</p><p class="hint">${t('The current timer keeps running until you confirm.')}</p>`, `<div class="modal-actions"><button class="secondary-button" data-action="close-modal">${t('Cancel')}</button><button class="primary-button" data-action="confirm-language" data-language="${language}">${t('Change language & restart')}</button></div>`);
+        return;
+      }
+      if (action === 'confirm-language' && active) {
+        // Restart with the current game's configuration, including restored games.
+        Object.assign(settings, {names:game.players.map(p => p.name), category:game.category, seconds:game.seconds, turns:game.turns, jokers:game.jokers});
+        settings.language = language; modal.close(); clearGame(); startGame(); return;
+      }
+      settings.language = language; setupError = '';
       if (game) E.expire(game);
       save(); modal.close(); render(false); tick();
       document.getElementById('language-button').focus({ preventScroll: true }); return;
@@ -422,7 +459,7 @@
     if (action === 'setup') { clearGame(); return; }
     if (action === 'play-again' && game?.phase === 'finished') { game = null; startGame(); return; }
     if (!game) {
-      if (action === 'add-player' && settings.names.length < 10) settings.names.push('');
+      if (action === 'add-player' && settings.names.length < E.MAX_PLAYERS) settings.names.push('');
       else if (action === 'remove-player' && settings.names.length > 2) settings.names.pop();
       else if (action === 'category') settings.category = button.dataset.category;
       else if (action === 'jokers' && [0, 1, 2].includes(Number(button.dataset.jokers))) settings.jokers = Number(button.dataset.jokers);
@@ -431,6 +468,7 @@
       else if (action === 'setup-back' && setupStep > 0) { setupStep--; stepDirection = -1; }
       else if (action === 'setup-step' && Number(button.dataset.step) <= setupStep) { stepDirection = -1; setupStep = Number(button.dataset.step); }
       else if (action === 'setup-next' && setupStep < 4) {
+        if (settings.names.length > E.MAX_PLAYERS) { setupStep = 0; render(false); return; }
         if (setupStep === 0 && (!settings.names.every(n => n.trim()) || new Set(settings.names.map(n => n.trim().toLowerCase())).size !== settings.names.length)) {
           setupError = t('Give everyone a name, and use a different name for each player.'); render(false); return;
         }
@@ -483,8 +521,14 @@
   }
   setInterval(tick, 100);
   window.addEventListener('pagehide', save);
-  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; document.getElementById('install-button').hidden = false; });
-  document.getElementById('install-button').addEventListener('click', async () => { if (installPrompt) { await installPrompt.prompt(); installPrompt = null; document.getElementById('install-button').hidden = true; } });
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    if (canInstall()) installPrompt = event;
+  });
+  window.addEventListener('appinstalled', () => {
+    appInstalled = true; installPrompt = null; refreshInstallActions();
+  });
+  standaloneDisplay.addEventListener('change', refreshInstallActions);
   // Optional browser-standard read access mirrors the public scoreboard only.
   // It never exposes the current word, future partners, or the shuffled deck.
   if (document.modelContext?.registerTool) {

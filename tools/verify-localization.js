@@ -13,7 +13,7 @@ async page => {
   await p.locator('[data-action="remove-player"]').click();await p.locator('[data-action="remove-player"]').click();
   await p.locator('[data-player="0"]').fill('Zoé');await p.locator('[data-player="1"]').fill('Noé');
   await p.locator('#rules-button').click();check((await p.locator('#modal-content').innerText()).includes('Le guide donne les indices'),'French rules');await p.locator('#modal [data-action="close-modal"]').click();
-  await p.locator('#about-button').click();check((await p.locator('#modal-content').innerText()).includes('Morphalou'),'French sources');await p.locator('#modal [data-action="close-modal"]').click();
+  await p.locator('#about-button').click();await p.locator('[data-action="sources"]').click();check((await p.locator('#modal-content').innerText()).includes('Morphalou'),'French sources');await p.locator('#modal [data-action="close-modal"]').click();
   await p.locator('[data-action="setup-next"]').click();await p.locator('[data-category="food"]').click();await p.locator('[data-action="setup-next"]').click();
   await p.locator('[data-action="time"][data-seconds="60"]').click();await p.locator('[data-action="setup-next"]').click();await p.locator('[data-jokers="2"]').click();await p.locator('[data-action="setup-next"]').click();await p.locator('[data-turns="1"]').click();await p.locator('#sound-button').click();
   const preferences=await p.evaluate(()=>JSON.parse(localStorage.getItem('pyramid-preferences-v2')));
@@ -24,10 +24,10 @@ async page => {
   check(await p.locator('#app').getAttribute('data-screen')==='ready','Two-player guesser shuffle returned');await p.locator('[data-action="reveal"]').click();
   let before=await p.evaluate(()=>JSON.parse(sessionStorage.getItem('pyramid-game-v1')));
   check(before.language==='fr'&&await p.evaluate(word=>PyramidWordsFr.food.includes(word),before.current.word),'Wrong French deck');
-  await p.locator('#language-button').click();await p.locator('[data-language="en"]').click();
+  await p.locator('#language-button').click();await p.locator('[data-language="en"]').click();await p.getByRole('button',{name:'Annuler',exact:true}).click();
   let after=await p.evaluate(()=>JSON.parse(sessionStorage.getItem('pyramid-game-v1')));
   check(after.current.word===before.current.word&&after.current.deadline===before.current.deadline&&after.language==='fr','Switch reset word, timer, or language');
-  check((await p.locator('.word-label').innerText()).includes('FOOD'),'English interface not switched');
+  check((await p.locator('.word-label').innerText()).includes('CUISINE'),'Cancel changed interface');
   await p.locator('[data-action="joker"]').click();after=await p.evaluate(()=>JSON.parse(sessionStorage.getItem('pyramid-game-v1')));
   check(after.current.word!==before.current.word&&await p.evaluate(word=>PyramidWordsFr.food.includes(word),after.current.word),'Joker changed deck language');
   await p.locator('#language-button').click();await p.locator('[data-language="fr"]').click();check((await p.locator('.word-label').innerText()).includes('CUISINE'),'French category missing');
@@ -47,7 +47,7 @@ async page => {
   await p.locator('#language-button').click();await p.locator('[data-language="en"]').click();await p.locator('[data-action="play-again"]').click();
   check(await p.evaluate(()=>JSON.parse(sessionStorage.getItem('pyramid-game-v1')).language)==='en','Next game not using selected language');
   const missing=await p.evaluate(()=>window.missingMessages);check(!missing.length,'Missing translations: '+missing.join('|'));check(!errors.length,errors.join('|'));
-  results.push({preferences,fullFrenchGame:true,switchPreservesGame:true,frenchJoker:true,guessAndBetTimeout:true,newGameLanguage:true});await context.close();
+  results.push({preferences,fullFrenchGame:true,cancelPreservesGame:true,frenchJoker:true,guessAndBetTimeout:true,newGameLanguage:true});await context.close();
   // Storage denial must not block gameplay or language switching.
   const blocked=await browser.newContext({locale:'en-US',serviceWorkers:'block'}),b=await blocked.newPage();
   await b.addInitScript(()=>Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Blocked','SecurityError')}}));await b.goto('http://127.0.0.1:4173/');

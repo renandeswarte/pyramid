@@ -1,6 +1,7 @@
 /* Pure game rules. Usable in the browser and in Node for verification. */
 (function (root) {
   'use strict';
+  const MAX_PLAYERS = 8;
   const TURNS = 6;
   const BRICKS = 18;
   function shuffle(items, random = Math.random) {
@@ -12,7 +13,7 @@
     return result;
   }
   function schedule(count, random = Math.random, rounds = TURNS) {
-    if (!Number.isInteger(count) || count < 2 || count > 10) throw new Error('Choose between 2 and 10 players.');
+    if (!Number.isInteger(count) || count < 2 || count > MAX_PLAYERS) throw new Error('Choose between 2 and 8 players.');
     if (!Number.isInteger(rounds) || rounds < 1 || rounds > 18) throw new Error('Choose between 1 and 18 turns per player.');
     const ring = shuffle(Array.from({ length: count }, (_, i) => i), random);
     const offsets = shuffle(Array.from({ length: count - 1 }, (_, i) => i + 1), random);
@@ -138,7 +139,7 @@
     return game;
   }
   function score(player) { return player.guessing + player.telling + player.brickBonus + player.jokerBonus; }
-  const api = { TURNS, BRICKS, shuffle, schedule, createGame, pair, beginBetting, expire, bet, joker, attempt, next, score, restore };
+  const api = { MAX_PLAYERS, TURNS, BRICKS, shuffle, schedule, createGame, pair, beginBetting, expire, bet, joker, attempt, next, score, restore };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.PyramidEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);
