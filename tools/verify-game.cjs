@@ -202,4 +202,33 @@ for (const count of [1, 9, 10]) {
   check(rejected, `New games reject ${count} players`);
 }
 
+// Untimed play never expires, including after backgrounding and a saved-game reload.
+{
+  let g = E.createGame(['A', 'B'], 'global', 0, words, random(42), 1, 2);
+  const later = 86400000;
+  ready(g, 1000);
+  check(g.current.deadline === null, 'Untimed betting has no deadline');
+  check(!E.expire(g, later) && g.phase === 'betting', 'Waiting never loses an untimed bet');
+  check(E.joker(g, later), 'Untimed Joker remains available after a long wait');
+  g = E.restore(JSON.parse(JSON.stringify(g)), later * 2);
+  check(g.seconds === 0 && g.current.deadline === null && !E.expire(g, later * 2), 'Untimed betting survives restore');
+  check(E.bet(g, 3, later * 2), 'Untimed bet accepted after restore');
+  check(g.current.deadline === null, 'Untimed guesses have no deadline');
+  check(!E.expire(g, later * 3) && g.current.attempts === 0, 'Waiting never consumes an untimed guess');
+  check(E.attempt(g, false, later * 3) && g.phase === 'attempts', 'Incorrect still consumes one untimed attempt');
+  g = E.restore(JSON.parse(JSON.stringify(g)), later * 4);
+  check(g.current.deadline === null && g.current.attempts === 1 && !E.expire(g, later * 4), 'Untimed attempts survive restore');
+  check(E.attempt(g, true, later * 5) && g.history[0].success, 'Correct untimed guess scores');
+  check(g.history[0].attemptResults.join() === 'incorrect,correct', 'Untimed receipt records manual outcomes');
+  E.next(g); ready(g, later * 6); E.bet(g, 2, later * 7);
+  E.attempt(g, false, later * 8); E.attempt(g, false, later * 9);
+  check(g.phase === 'recap' && !g.history[1].success && !g.history[1].timeout, 'Exhausting untimed attempts loses the word without timeout');
+  E.next(g);
+  check(g.phase === 'finished' && g.players.every(p => p.told === 1 && p.guessed === 1), 'Untimed game completes normally');
+  check(g.players.reduce((total, p) => total + E.score(p), 0) === 6, 'Untimed scores include success, saved bricks, and unused Jokers');
+}
+for (const seconds of [-1, 15, null, undefined, '0']) {
+  assert.throws(() => E.createGame(['A', 'B'], 'global', seconds, words));
+}
+
 console.log(`Passed ${checks.toLocaleString()} game-rule and schedule checks.`);

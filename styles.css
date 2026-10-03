@@ -787,3 +787,18 @@ html.touch-input body input,html.touch-input body textarea,html.touch-input body
     position:absolute; left:0; bottom:0; width:calc((100% - 24px) * .8 / 2.3); margin:0;
   }
 }
+
+/* Three pace options, including untimed play, fit on a single row. */
+.time-choices { grid-template-columns:repeat(3,minmax(0,1fr)); max-width:620px; width:100%; }
+.time-choice { min-width:0; }
+.untimed-label { flex-shrink:0; color:var(--muted); font-size:11px; }
+.danger-button[data-action="incorrect"] { background:#e5484838; border-color:#f16b6b80; color:#ffaaaa; }
+@media (hover:hover) and (pointer:fine) {
+  html:not(.touch-input) .danger-button[data-action="incorrect"]:hover { background:#e5484852; border-color:#ff8585; }
+}
+@media(max-width:700px) {
+  .time-choices { gap:8px; }
+  .time-choice { padding-left:8px; padding-right:8px; font-size:10px; }
+  .time-choice small { font-size:10px; letter-spacing:0; }
+  .time-choice .choice-check { top:7px; right:7px; width:16px; height:16px; }
+}

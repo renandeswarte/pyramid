@@ -29,7 +29,7 @@
     const planned = schedule(names.length, random, rounds);
     if (!names.every(name => typeof name === 'string' && name.trim() && name.trim().length <= 24)) throw new Error('Give every player a name (24 characters or fewer).');
     if (new Set(names.map(name => name.trim().toLowerCase())).size !== names.length) throw new Error('Use a different name for each player.');
-    if (![30, 60].includes(seconds)) throw new Error('Choose a 30- or 60-second time limit.');
+    if (![0, 30, 60].includes(seconds)) throw new Error('Choose no timer, 30 seconds, or 60 seconds.');
     if (![0, 1, 2].includes(jokers)) throw new Error('Choose zero, one, or two Jokers.');
     const unique = [...new Map(words.map(word => [word.trim().toLowerCase(), word.trim()])).values()].filter(Boolean);
     if (unique.length < names.length * (rounds + jokers)) throw new Error('This category needs more words for this many players.');
@@ -48,7 +48,7 @@
   }
   function beginBetting(game, now = Date.now()) {
     if (game.phase !== 'ready') return false;
-    game.current = { ...pair(game), word: draw(game), discarded: [], bet: 0, attempts: 0, attemptResults: [], deadline: now + game.seconds * 1000 };
+    game.current = { ...pair(game), word: draw(game), discarded: [], bet: 0, attempts: 0, attemptResults: [], deadline: game.seconds === 0 ? null : now + game.seconds * 1000 };
     game.phase = 'betting';
     return true;
   }
@@ -72,7 +72,7 @@
     return true;
   }
   function expire(game, now = Date.now()) {
-    if (!['betting', 'attempts'].includes(game.phase) || now < game.current.deadline) return false;
+    if (game.seconds === 0 || !['betting', 'attempts'].includes(game.phase) || now < game.current.deadline) return false;
     const turn = game.current;
     if (game.phase === 'betting') {
       turn.bet = 3;
@@ -96,7 +96,7 @@
     if (amount > teller.bricks) throw new Error('Not enough bricks.');
     teller.bricks -= amount;
     game.current.bet = amount;
-    game.current.deadline = now + game.seconds * 1000;
+    game.current.deadline = game.seconds === 0 ? null : now + game.seconds * 1000;
     game.phase = 'attempts';
     return true;
   }
@@ -114,7 +114,7 @@
     game.current.attempts++;
     game.current.attemptResults.push(correct ? 'correct' : 'incorrect');
     if (correct || game.current.attempts >= game.current.bet) finishTurn(game, Boolean(correct));
-    else game.current.deadline = now + game.seconds * 1000;
+    else game.current.deadline = game.seconds === 0 ? null : now + game.seconds * 1000;
     return true;
   }
   function next(game) {
@@ -133,7 +133,7 @@
         turn.attemptResults = Array.from({ length: turn.attempts }, (_, i) => turn.success && i === turn.attempts - 1 ? 'correct' : 'incorrect');
         if (turn.timeout) turn.timeout = 'betting';
       }
-      if (game.phase === 'attempts') game.current.deadline = now + game.seconds * 1000;
+      if (game.phase === 'attempts') game.current.deadline = game.seconds === 0 ? null : now + game.seconds * 1000;
       game.version = 2;
     }
     return game;
